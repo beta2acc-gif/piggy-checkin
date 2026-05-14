@@ -169,10 +169,23 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
       <h1>Piggy Check-in</h1>
       <p>ระบบเช็กชื่อพ่อ-แม่พันธุ์อัจฉริยะ</p>
     </div>
+
+    <!-- API URL Setup (แสดงถ้ายังไม่ได้ตั้งค่า) -->
+    <div id="apiSetupBox" style="display:none;background:#fff3cd;border-radius:10px;padding:12px;margin-bottom:14px;border:1px solid #ffc107">
+      <div style="font-size:.85rem;font-weight:700;color:#856404;margin-bottom:6px">⚙️ ตั้งค่าการเชื่อมต่อ (ครั้งแรก)</div>
+      <div style="font-size:.8rem;color:#666;margin-bottom:8px">วาง Apps Script URL เพื่อเชื่อมกับทีม</div>
+      <input type="text" id="loginApiUrl" placeholder="https://script.google.com/macros/s/.../exec" style="font-size:.78rem;margin-bottom:6px">
+      <button class="btn btn-sm" style="background:#856404;color:#fff;width:100%" onclick="saveLoginApiUrl()">💾 บันทึก URL</button>
+      <div id="loginApiSaved" style="display:none;font-size:.78rem;color:green;margin-top:4px;text-align:center">✓ บันทึกแล้ว</div>
+    </div>
+
     <label>Username</label>
     <input type="text" id="loginUser" placeholder="กรอก username" onkeypress="if(event.key==='Enter')doLogin()">
     <label>Password</label>
-    <input type="password" id="loginPass" placeholder="กรอก password" onkeypress="if(event.key==='Enter')doLogin()">
+    <div style="position:relative">
+      <input type="password" id="loginPass" placeholder="กรอก password" onkeypress="if(event.key==='Enter')doLogin()" style="padding-right:44px">
+      <button type="button" onclick="const i=document.getElementById('loginPass');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁️':'🙈'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;padding:0">👁️</button>
+    </div>
     <div id="loginErr" class="login-err" style="display:none"></div>
     <button class="btn btn-primary btn-full" onclick="doLogin()">🔓 เข้าสู่ระบบ</button>
   </div>
@@ -1556,8 +1569,21 @@ function showAlert(id,type,msg){
   el._t=setTimeout(()=>el.classList.add('hidden'),5000);
 }
 
-window.onload=()=>{
-  document.getElementById('countDate').value=new Date().toISOString().split('T')[0];
+function saveLoginApiUrl() {
+  const url = document.getElementById('loginApiUrl').value.trim();
+  if (!url) return alert('กรุณาวาง URL ก่อน');
+  API_URL = url;
+  localStorage.setItem('pig_api_url', url);
+  document.getElementById('loginApiSaved').style.display = 'block';
+  setTimeout(() => document.getElementById('loginApiSaved').style.display = 'none', 2000);
+}
+
+window.onload = () => {
+  document.getElementById('countDate').value = new Date().toISOString().split('T')[0];
+  // ถ้าเครื่องนี้ยังไม่มี API URL → แสดงช่องกรอก
+  if (!API_URL) {
+    document.getElementById('apiSetupBox').style.display = 'block';
+  }
 };
 </script>
 </body>
