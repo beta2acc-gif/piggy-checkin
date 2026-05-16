@@ -5,12 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Piggy Check-in</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
-:root {
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap');
+:root{
   --bg:#f5f0e8;--card:#fff;--primary:#8B4513;--primary-light:#A0522D;--accent:#D2691E;
   --sow:#c0392b;--boar:#2980b9;--piglet:#e67e22;--green:#27ae60;--red:#e74c3c;
   --gray:#7f8c8d;--border:#ddd;--text:#2c2c2c;--shadow:0 2px 12px rgba(0,0,0,0.1);
+  --yellow:#ffc107;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
@@ -18,16 +22,19 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text);min
 /* LOGIN */
 .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
   background:linear-gradient(135deg,#5c2a0e 0%,#8B4513 50%,#D2691E 100%);}
-.login-box{background:#fff;border-radius:20px;padding:36px 28px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,0.3);}
+.login-box{background:#fff;border-radius:20px;padding:36px 28px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.3);}
 .login-logo{text-align:center;margin-bottom:24px;}
 .login-logo .pig{font-size:3.5rem;}
-.login-logo h1{font-size:1.6rem;font-weight:800;color:var(--primary);margin-top:6px;}
-.login-logo p{font-size:0.85rem;color:#888;margin-top:2px;}
-.login-box label{display:block;font-size:0.88rem;font-weight:600;color:#555;margin-bottom:5px;}
+.login-logo h1{font-size:1.7rem;font-weight:800;color:var(--primary);margin-top:8px;}
+.login-logo p{font-size:0.88rem;color:#888;margin-top:4px;}
+.login-box label{display:block;font-size:0.9rem;font-weight:600;color:#555;margin-bottom:6px;margin-top:12px;}
 .login-box input{width:100%;padding:11px 14px;border:2px solid var(--border);border-radius:8px;
-  font-family:'Sarabun',sans-serif;font-size:1rem;outline:none;margin-bottom:14px;transition:border .2s;}
+  font-family:'Sarabun',sans-serif;font-size:1rem;outline:none;transition:border .2s;}
 .login-box input:focus{border-color:var(--primary);}
-.login-err{color:var(--red);font-size:0.85rem;margin-bottom:10px;text-align:center;}
+.login-box input::-ms-reveal,.login-box input::-ms-clear{display:none;}
+input::-ms-reveal,input::-ms-clear{display:none;}
+.login-err{color:var(--red);font-size:0.85rem;margin-top:10px;text-align:center;display:none;}
+.login-err.show{display:block;}
 
 /* HEADER */
 header{background:linear-gradient(135deg,var(--primary) 0%,var(--accent) 100%);color:#fff;
@@ -36,6 +43,9 @@ header{background:linear-gradient(135deg,var(--primary) 0%,var(--accent) 100%);c
 .header-left .pig{font-size:1.8rem;}
 .header-left h1{font-size:1.15rem;font-weight:800;line-height:1.2;}
 .header-left p{font-size:0.72rem;opacity:.85;}
+.header-right{display:flex;align-items:center;gap:10px;}
+.online-badge{background:var(--green);color:#fff;padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:700;}
+.online-badge.offline{background:var(--red);}
 .user-badge{background:rgba(255,255,255,.2);border-radius:20px;padding:4px 12px;font-size:0.8rem;cursor:pointer;}
 
 /* NAV */
@@ -52,7 +62,7 @@ header{background:linear-gradient(135deg,var(--primary) 0%,var(--accent) 100%);c
 .card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow);}
 .card h2{font-size:.95rem;font-weight:700;margin-bottom:12px;color:var(--primary);display:flex;align-items:center;gap:8px;}
 label{display:block;font-size:.88rem;font-weight:600;margin-bottom:5px;color:#555;}
-input[type=text],input[type=date],input[type=password],select,textarea{
+input[type=text],input[type=date],input[type=password],input[type=email],input[type=number],select,textarea{
   width:100%;padding:10px 14px;border:2px solid var(--border);border-radius:8px;
   font-family:'Sarabun',sans-serif;font-size:.95rem;outline:none;transition:border .2s;background:#fafafa;}
 input:focus,select:focus{border-color:var(--primary);background:#fff;}
@@ -76,28 +86,43 @@ input:focus,select:focus{border-color:var(--primary);background:#fff;}
 .btn-full{width:100%;}
 .btn:disabled{opacity:.45;cursor:not-allowed;}
 
-/* BARN HEADER */
+/* BARN BAR */
 .barn-bar{background:linear-gradient(90deg,#8B4513,#D2691E);color:#fff;border-radius:10px;
   padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;}
 .barn-bar .barn-name{font-size:1.1rem;font-weight:800;}
 .barn-bar .barn-count{font-size:.85rem;opacity:.9;}
+
+/* SEARCH */
+.search-box{position:relative;}
+.search-box input{padding-right:50px;}
+.dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:2px solid var(--primary);
+  border-radius:8px;margin-top:4px;max-height:280px;overflow-y:auto;box-shadow:var(--shadow);z-index:10;display:none;}
+.dropdown.show{display:block;}
+.dropdown-item{padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .15s;}
+.dropdown-item:hover,.dropdown-item.selected{background:#fdf6ee;}
+.dropdown-item .did{font-weight:700;font-size:.92rem;}
+.dropdown-item .dmeta{font-size:.78rem;color:#777;margin-top:2px;}
+.dropdown-empty{padding:12px;text-align:center;color:#999;font-size:.85rem;}
+.dropdown-add{background:#fff3cd;padding:10px 12px;cursor:pointer;border-top:2px solid #ffc107;
+  font-weight:600;color:#856404;text-align:center;font-size:.88rem;}
+.dropdown-add:hover{background:#ffe69c;}
 
 /* PIG ITEM */
 .pig-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;
   margin-bottom:6px;border-left:4px solid transparent;}
 .pig-item.sow{background:#fef0ee;border-left-color:var(--sow);}
 .pig-item.boar{background:#eef5fc;border-left-color:var(--boar);}
+.pig-item.unknown{background:#f5f5f5;border-left-color:var(--gray);}
 .pig-item .id{font-weight:700;font-size:.88rem;flex:1;}
 .badge{font-size:.72rem;padding:2px 7px;border-radius:12px;font-weight:700;color:#fff;}
-.badge-sow{background:var(--sow);}.badge-boar{background:var(--boar);}
-.badge-ok{background:var(--green);}.badge-no{background:var(--gray);}
-.badge-piglet{background:var(--piglet);}.badge-barn{background:#8B4513;}
-.piglet-input{width:56px;padding:4px 6px;font-size:.82rem;border-radius:6px;border:1.5px solid var(--border);text-align:center;}
+.badge-sow{background:var(--sow);}.badge-boar{background:var(--boar);}.badge-unknown{background:var(--gray);}
+.badge-ok{background:var(--green);}.badge-no{background:var(--red);}
+.badge-piglet{background:var(--piglet);}.badge-warning{background:var(--yellow);color:#333;}
+input.piglet-input{width:60px !important;padding:4px 6px !important;font-size:.82rem !important;border-radius:6px;border:1.5px solid var(--border);text-align:center;background:#fff;display:inline-block !important;}
 
-/* BARN LIST */
-.barn-card{background:#fdf6ee;border:1.5px solid #e0c9a6;border-radius:10px;padding:12px;
-  margin-bottom:10px;}
-.barn-card .bc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+/* BARN CARD */
+.barn-card{background:#fdf6ee;border:1.5px solid #e0c9a6;border-radius:10px;padding:12px;margin-bottom:10px;}
+.barn-card .bc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;}
 .barn-card .bc-name{font-weight:700;color:var(--primary);font-size:1rem;}
 .barn-card .bc-stats{font-size:.82rem;color:#666;}
 
@@ -106,17 +131,16 @@ input:focus,select:focus{border-color:var(--primary);background:#fff;}
 .stat-box{background:#f8f8f8;border-radius:10px;padding:12px 8px;text-align:center;border-top:3px solid var(--border);}
 .stat-box.sow-box{border-top-color:var(--sow);}.stat-box.boar-box{border-top-color:var(--boar);}
 .stat-box.piglet-box{border-top-color:var(--piglet);}
-.stat-box .num{font-size:1.8rem;font-weight:800;color:var(--primary);}
-.stat-box .lbl{font-size:.75rem;color:#777;margin-top:2px;}
+.stat-box .num{font-size:1.7rem;font-weight:800;color:var(--primary);}
+.stat-box .lbl{font-size:.72rem;color:#777;margin-top:2px;}
 
 /* REPORT CARD */
 .report-card{background:var(--card);border-radius:10px;padding:14px;margin-bottom:8px;
-  border-left:4px solid var(--primary);box-shadow:var(--shadow);}
+  border-left:4px solid var(--primary);box-shadow:var(--shadow);cursor:pointer;}
+.rc-num{font-size:.72rem;color:#bbb;}
 .rc-farm{font-weight:700;color:var(--primary);}
 .rc-date{font-size:.82rem;color:#888;}
 .rc-meta{font-size:.83rem;color:#555;margin-top:4px;}
-.rc-sub{font-size:.78rem;color:#999;margin-top:2px;}
-.rc-id{font-size:.72rem;color:#bbb;margin-bottom:2px;}
 
 /* UPLOAD */
 .upload-zone{border:2px dashed var(--primary);border-radius:10px;padding:24px;text-align:center;
@@ -124,18 +148,19 @@ input:focus,select:focus{border-color:var(--primary);background:#fff;}
 .upload-zone:hover{background:#fbeede;}
 .upload-zone input{display:none;}
 .farm-chip{display:inline-flex;align-items:center;gap:5px;background:var(--primary);color:#fff;
-  padding:3px 9px;border-radius:20px;font-size:.78rem;margin:3px;}
-.farm-chip .rm{cursor:pointer;opacity:.8;}
+  padding:4px 10px;border-radius:20px;font-size:.78rem;margin:3px;}
+.farm-chip .rm{cursor:pointer;opacity:.8;margin-left:4px;}
 
 /* ALERT */
 .alert{padding:10px 14px;border-radius:8px;margin-bottom:10px;font-size:.85rem;display:flex;align-items:center;gap:8px;}
 .alert-green{background:#d4edda;color:#155724;}.alert-red{background:#f8d7da;color:#721c24;}
 .alert.hidden{display:none;}
 
-/* SYNC BAR */
-.sync-bar{background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px 14px;
-  display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;font-size:.85rem;}
-.sync-bar.hidden{display:none;}
+/* TOAST */
+.toast{position:fixed;bottom:20px;right:20px;background:#333;color:#fff;padding:12px 18px;
+  border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);z-index:1000;display:none;max-width:350px;font-size:0.9rem;}
+.toast.show{display:block;animation:slideIn .3s;}
+@keyframes slideIn{from{transform:translateY(100px);opacity:0;}to{transform:translateY(0);opacity:1;}}
 
 /* OVERLAY */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;
@@ -150,13 +175,97 @@ input:focus,select:focus{border-color:var(--primary);background:#fff;}
 .user-table{width:100%;border-collapse:collapse;font-size:.85rem;}
 .user-table th{background:var(--primary);color:#fff;padding:8px 10px;text-align:left;}
 .user-table td{padding:8px 10px;border-bottom:1px solid #eee;}
-.user-table tr:last-child td{border:none;}
 
 .input-row{display:flex;gap:8px;margin-bottom:8px;}
 .input-row input{flex:1;}
 .empty{text-align:center;color:#aaa;padding:28px;font-size:.88rem;}
 hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
 @media(max-width:420px){.stat-grid{grid-template-columns:repeat(2,1fr);}.row{flex-direction:column;}}
+@media print {
+  header, .nav-tabs, .toast, .overlay, #appScreen > .header { display:none !important; }
+  body { background:#fff !important; }
+  .page { padding:0 !important; max-width:100% !important; }
+  .page:not(#page-dashboard) { display:none !important; }
+  #page-dashboard { display:block !important; }
+  .dash-hero { background:linear-gradient(135deg,#8B4513,#D2691E) !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .kpi-card { background:rgba(255,255,255,0.2) !important; -webkit-print-color-adjust:exact; }
+  .dash-section { page-break-inside:avoid; box-shadow:none !important; border:1px solid #ddd; }
+  .bar-fill { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  @page { margin:1.2cm; size:A4; }
+}
+
+/* === EXECUTIVE DASHBOARD === */
+#page-dashboard{max-width:1100px;}
+.dash-hero{background:linear-gradient(135deg,#8B4513 0%,#A0522D 50%,#D2691E 100%);color:#fff;
+  padding:24px;border-radius:16px;margin-bottom:20px;box-shadow:0 8px 24px rgba(139,69,19,0.25);}
+.dash-hero-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
+.dash-hero h1{font-size:1.4rem;font-weight:800;}
+.dash-hero p{font-size:0.85rem;opacity:0.9;margin-top:4px;}
+.dash-hero .date-stamp{background:rgba(255,255,255,0.15);padding:6px 12px;border-radius:20px;font-size:0.78rem;}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;}
+.kpi-card{background:rgba(255,255,255,0.15);backdrop-filter:blur(10px);border-radius:12px;padding:16px;
+  border:1px solid rgba(255,255,255,0.2);}
+.kpi-icon{font-size:1.6rem;margin-bottom:8px;}
+.kpi-num{font-size:2rem;font-weight:800;line-height:1;}
+.kpi-lbl{font-size:0.78rem;opacity:0.85;margin-top:4px;}
+.kpi-sub{font-size:0.72rem;opacity:0.7;margin-top:2px;}
+
+.dash-section{background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);}
+.dash-section h3{font-size:1rem;font-weight:700;color:var(--primary);margin-bottom:14px;
+  display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:2px solid #fdf6ee;}
+
+.dash-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media(max-width:768px){.dash-grid-2{grid-template-columns:1fr;}}
+
+/* Bar Chart */
+.bar-chart{margin-top:10px;}
+.bar-row{margin-bottom:14px;}
+.bar-label{display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:5px;}
+.bar-label strong{color:var(--text);}
+.bar-label .val{color:var(--primary);font-weight:700;}
+.bar-track{background:#f0e8db;border-radius:20px;height:18px;overflow:hidden;position:relative;}
+.bar-fill{height:100%;background:linear-gradient(90deg,#8B4513,#D2691E);border-radius:20px;
+  display:flex;align-items:center;justify-content:flex-end;padding-right:10px;color:#fff;font-size:0.72rem;font-weight:700;
+  transition:width 0.6s ease;}
+
+/* Donut Chart */
+.donut-wrap{display:flex;align-items:center;justify-content:center;gap:20px;flex-wrap:wrap;}
+.donut-svg{width:160px;height:160px;}
+.donut-legend{font-size:0.85rem;}
+.donut-legend-item{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.donut-dot{width:14px;height:14px;border-radius:3px;}
+
+/* Activity Timeline */
+.timeline-item{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid #f0f0f0;}
+.timeline-item:last-child{border:none;}
+.timeline-dot{width:36px;height:36px;background:linear-gradient(135deg,var(--primary),var(--accent));
+  border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;flex-shrink:0;}
+.timeline-content{flex:1;}
+.timeline-title{font-weight:700;font-size:0.9rem;color:var(--text);}
+.timeline-meta{font-size:0.78rem;color:#888;margin-top:2px;}
+.timeline-stats{font-size:0.78rem;color:var(--primary);margin-top:3px;}
+
+/* Top Farms */
+.farm-rank{display:flex;align-items:center;gap:12px;padding:10px;background:#fdf6ee;border-radius:10px;margin-bottom:8px;}
+.farm-rank-num{width:32px;height:32px;background:var(--primary);color:#fff;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;}
+.farm-rank-num.gold{background:linear-gradient(135deg,#FFD700,#FFA500);}
+.farm-rank-num.silver{background:linear-gradient(135deg,#C0C0C0,#A8A8A8);}
+.farm-rank-num.bronze{background:linear-gradient(135deg,#CD7F32,#8B4513);}
+.farm-rank-info{flex:1;}
+.farm-rank-name{font-weight:700;font-size:0.95rem;}
+.farm-rank-meta{font-size:0.78rem;color:#888;}
+.farm-rank-val{font-size:1.1rem;font-weight:800;color:var(--primary);}
+
+/* Alert Box */
+.alert-box{display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:10px;margin-bottom:10px;}
+.alert-box.warning{background:#fff3cd;border-left:4px solid #ffc107;}
+.alert-box.info{background:#cfe2ff;border-left:4px solid #0d6efd;}
+.alert-box.success{background:#d1e7dd;border-left:4px solid var(--green);}
+.alert-icon{font-size:1.5rem;flex-shrink:0;}
+.alert-content{flex:1;font-size:0.88rem;}
+.alert-content strong{display:block;margin-bottom:2px;}
+
 </style>
 </head>
 <body>
@@ -169,25 +278,34 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
       <h1>Piggy Check-in</h1>
       <p>ระบบเช็กชื่อพ่อ-แม่พันธุ์อัจฉริยะ</p>
     </div>
-
-    <!-- API URL Setup (แสดงถ้ายังไม่ได้ตั้งค่า) -->
-    <div id="apiSetupBox" style="display:none;background:#fff3cd;border-radius:10px;padding:12px;margin-bottom:14px;border:1px solid #ffc107">
-      <div style="font-size:.85rem;font-weight:700;color:#856404;margin-bottom:6px">⚙️ ตั้งค่าการเชื่อมต่อ (ครั้งแรก)</div>
-      <div style="font-size:.8rem;color:#666;margin-bottom:8px">วาง Apps Script URL เพื่อเชื่อมกับทีม</div>
-      <input type="text" id="loginApiUrl" placeholder="https://script.google.com/macros/s/.../exec" style="font-size:.78rem;margin-bottom:6px">
-      <button class="btn btn-sm" style="background:#856404;color:#fff;width:100%" onclick="saveLoginApiUrl()">💾 บันทึก URL</button>
-      <div id="loginApiSaved" style="display:none;font-size:.78rem;color:green;margin-top:4px;text-align:center">✓ บันทึกแล้ว</div>
-    </div>
-
-    <label>Username</label>
-    <input type="text" id="loginUser" placeholder="กรอก username" onkeypress="if(event.key==='Enter')doLogin()">
-    <label>Password</label>
+    <label>📧 อีเมล</label>
+    <input type="email" id="loginEmail" placeholder="your@email.com" onkeypress="if(event.key==='Enter')doLogin()">
+    <label>🔒 รหัสผ่าน</label>
     <div style="position:relative">
-      <input type="password" id="loginPass" placeholder="กรอก password" onkeypress="if(event.key==='Enter')doLogin()" style="padding-right:44px">
-      <button type="button" onclick="const i=document.getElementById('loginPass');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁️':'🙈'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;padding:0">👁️</button>
+      <input type="password" id="loginPass" placeholder="••••••••" onkeypress="if(event.key==='Enter')doLogin()" style="padding-right:44px">
+      <button type="button" onclick="const i=document.getElementById('loginPass');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁️':'🙈'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem">👁️</button>
     </div>
-    <div id="loginErr" class="login-err" style="display:none"></div>
-    <button class="btn btn-primary btn-full" onclick="doLogin()">🔓 เข้าสู่ระบบ</button>
+    <div id="loginErr" class="login-err"></div>
+    <button class="btn btn-primary btn-full" onclick="doLogin()" style="margin-top:14px">🔓 เข้าสู่ระบบ</button>
+    <div style="text-align:center;margin-top:14px">
+      <a href="javascript:void(0)" onclick="showResetPassword()" style="color:var(--primary);text-decoration:none;font-size:.88rem;font-weight:600">🔑 ลืมรหัสผ่าน?</a>
+    </div>
+  </div>
+
+  <!-- Reset Password Box -->
+  <div id="resetPasswordBox" class="login-box" style="display:none;">
+    <div class="login-logo">
+      <div class="pig">🔑</div>
+      <h1 style="font-size:1.4rem">ลืมรหัสผ่าน?</h1>
+      <p style="font-size:.85rem">กรอกอีเมล ระบบจะส่งลิงค์รีเซ็ตให้</p>
+    </div>
+    <label>📧 อีเมล</label>
+    <input type="email" id="resetEmail" placeholder="your@email.com" onkeypress="if(event.key==='Enter')sendResetEmail()">
+    <div id="resetMsg" style="font-size:.85rem;margin-top:10px;text-align:center;display:none;"></div>
+    <button class="btn btn-primary btn-full" onclick="sendResetEmail()" id="resetBtn" style="margin-top:14px">📨 ส่งลิงค์รีเซ็ตรหัสผ่าน</button>
+    <div style="text-align:center;margin-top:12px">
+      <a href="javascript:void(0)" onclick="showLoginForm()" style="color:#888;text-decoration:none;font-size:.85rem">← กลับไปหน้า Login</a>
+    </div>
   </div>
 </div>
 
@@ -201,7 +319,10 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
         <p>ระบบเช็กชื่อพ่อ-แม่พันธุ์อัจฉริยะ</p>
       </div>
     </div>
-    <span class="user-badge" onclick="doLogout()" id="userBadge">👤 — | ออกจากระบบ</span>
+    <div class="header-right">
+      <span class="online-badge" id="onlineBadge">● ออนไลน์</span>
+      <span class="user-badge" onclick="doLogout()" id="userBadge">👤 — | ออก</span>
+    </div>
   </header>
   <div class="nav-tabs" id="navTabs"></div>
 
@@ -210,84 +331,84 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
     <div class="card">
       <h2>📂 อัพโหลดพันธุ์ประวัติ</h2>
       <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
-        <input type="file" id="fileInput" multiple accept=".xlsx,.xls" onchange="handleFiles(this.files)">
-        <div style="font-size:2.2rem">📑</div>
-        <strong>คลิกเพื่อเลือกไฟล์ Excel</strong>
-        <p style="color:#888;font-size:.85rem;margin-top:4px">รองรับหลายไฟล์ — ชื่อไฟล์ = ชื่อฟาร์ม</p>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleExcelFile(this.files)">
+        <div style="font-size:2rem">📑</div>
+        <strong>คลิกเลือกไฟล์ Excel</strong>
+        <p style="color:#888;font-size:.83rem;margin-top:4px">รองรับ .xlsx, .xls — ชื่อไฟล์ = ชื่อฟาร์ม</p>
       </div>
-      <div id="farmChips" style="margin-top:10px"></div>
+      <div id="uploadStatus" style="margin-top:10px;font-size:.85rem;display:none;"></div>
+      <div id="farmNameSection" style="display:none;margin-top:12px;">
+        <label>ชื่อฟาร์ม <span style="color:#999;font-weight:400;font-size:.78rem">(แก้ไขได้)</span></label>
+        <input type="text" id="farmName" placeholder="ชื่อฟาร์ม">
+      </div>
+      <button class="btn btn-primary mt-8" onclick="uploadFarmToFirebase()" id="uploadBtn" disabled>☁️ บันทึกขึ้น Cloud</button>
     </div>
+
     <div class="card">
-      <h2>🔗 เชื่อมต่อ Google Sheets</h2>
-      <label>Apps Script URL</label>
-      <input type="text" id="apiUrl" placeholder="https://script.google.com/macros/s/.../exec" style="font-size:.8rem">
-      <button class="btn btn-green mt-8" onclick="saveApiUrl()">💾 บันทึก URL</button>
-      <span id="apiSaved" style="display:none;color:var(--green);font-size:.83rem;margin-left:8px">✓ บันทึกแล้ว</span>
-    </div>
-    <div class="card" id="farmSyncCard">
-      <h2>☁️ ซิงค์พันธุ์ประวัติ</h2>
-      <p style="font-size:.85rem;color:#666;margin-bottom:10px">อัพโหลด Excel แล้วกดซิงค์ขึ้น Cloud เพื่อให้ทุกเครื่องเข้าถึงได้</p>
-      <div id="syncFarmProgress" style="display:none;background:#fff3cd;border-radius:8px;padding:10px;margin-bottom:10px;font-size:.85rem">
-        ⏳ <span id="syncFarmMsg">กำลังซิงค์...</span>
-      </div>
-      <button class="btn btn-primary" onclick="syncFarmsToCloud()" id="syncFarmBtn">☁️ ซิงค์พันธุ์ประวัติขึ้น Cloud</button>
-      <button class="btn btn-gray" style="margin-left:8px" onclick="fetchFarmsFromCloud()">🔄 ดึงจาก Cloud</button>
+      <h2>🏠 ฟาร์มในระบบ</h2>
+      <div id="farmList"><div class="empty">ยังไม่มีฟาร์ม</div></div>
     </div>
 
     <div class="card">
       <h2>👥 จัดการผู้ใช้งาน</h2>
       <table class="user-table" id="userTable"></table>
       <hr>
-      <div style="font-size:.85rem;font-weight:600;margin-bottom:8px;color:var(--primary)">➕ เพิ่มผู้ใช้ใหม่</div>
+      <div style="font-size:.9rem;font-weight:700;color:var(--primary);margin-bottom:10px">➕ เพิ่ม User ใหม่</div>
       <div class="row">
-        <div><label>Username</label><input type="text" id="newUsername" placeholder="username"></div>
-        <div><label>Password</label><input type="password" id="newPassword" placeholder="password"></div>
+        <div><label>📧 Email</label><input type="email" id="newEmail" placeholder="user@piggy.com"></div>
+        <div><label>🔒 รหัสผ่าน <span style="color:#999;font-weight:400">(อย่างน้อย 6 ตัว)</span></label><input type="password" id="newPassword" placeholder="••••••••"></div>
       </div>
       <div class="row">
-        <div>
-          <label>Role</label>
-          <select id="newRole"><option value="user">User</option><option value="admin">Admin</option></select>
-        </div>
-        <div><label>ชื่อแสดง</label><input type="text" id="newDisplayName" placeholder="ชื่อ-สกุล"></div>
+        <div><label>👤 ชื่อแสดง</label><input type="text" id="newDisplayName" placeholder="ชื่อ-สกุล"></div>
+        <div><label>🛡️ สิทธิ์</label><select id="newRole"><option value="user">User (ผู้ตรวจนับ)</option><option value="admin">Admin (ผู้ดูแล)</option></select></div>
       </div>
-      <button class="btn btn-primary" onclick="addUser()">➕ เพิ่มผู้ใช้</button>
+      <button class="btn btn-primary" onclick="createNewUser()" id="createUserBtn">➕ สร้าง User ใหม่</button>
+      <div id="createUserStatus" style="margin-top:10px;font-size:.85rem;display:none;"></div>
     </div>
   </div>
 
-  <!-- USER: เริ่มตรวจนับ (Setup) -->
+  <!-- USER: เริ่มตรวจนับ -->
   <div id="page-setup" class="page">
     <div class="card">
       <h2>🏗️ ตั้งค่าการตรวจนับ</h2>
-      <div class="mb-12">
-        <label>🏠 เลือกฟาร์ม</label>
-        <select id="farmSelect"><option value="">-- เลือกฟาร์ม --</option></select>
-      </div>
+      <label>🏠 เลือกฟาร์ม</label>
+      <select id="farmSelect" class="mb-12"><option value="">-- เลือกฟาร์ม --</option></select>
       <div class="row">
         <div><label>📅 วันที่ตรวจนับ</label><input type="date" id="countDate"></div>
-        <div><label>👤 ชื่อผู้ตรวจนับ</label><input type="text" id="submitterName" placeholder="ชื่อ-นามสกุล"></div>
+        <div><label>👤 ชื่อผู้ตรวจนับ</label><input type="text" id="submitterName" placeholder="ชื่อ-สกุล"></div>
       </div>
-      <div class="mb-12">
-        <label>🏚️ ชื่อ/เลขเล้าแรกที่จะตรวจ <span style="color:#999;font-weight:400">(เช่น F1, B1, เล้า1)</span></label>
-        <input type="text" id="firstBarnName" placeholder="พิมพ์ชื่อเล้า">
-      </div>
+      <label>🏚️ ชื่อ/เลขเล้าแรก <span style="color:#999;font-weight:400">(เช่น F1, B1)</span></label>
+      <input type="text" id="firstBarnName" placeholder="พิมพ์ชื่อเล้า" class="mb-12">
       <button class="btn btn-primary btn-full" onclick="startCounting()">▶ เริ่มตรวจนับ</button>
     </div>
   </div>
 
   <!-- ตรวจนับ -->
   <div id="page-count" class="page">
+    <div id="countEmpty" style="display:none;">
+      <div class="card" style="text-align:center;padding:40px 20px;">
+        <div style="font-size:3rem;margin-bottom:12px;">📋</div>
+        <h2 style="justify-content:center;margin-bottom:8px;">ยังไม่ได้เริ่มตรวจนับ</h2>
+        <p style="color:#888;font-size:.9rem;margin-bottom:18px;">กรุณาไปที่หน้า "เริ่มนับ" เพื่อตั้งค่าฟาร์มและเริ่มตรวจนับ</p>
+        <button class="btn btn-primary" onclick="showPage('setup')">📝 ไปหน้าเริ่มนับ</button>
+      </div>
+    </div>
+    <div id="countActive">
+    <div id="recountBanner" style="display:none;background:linear-gradient(90deg,#e67e22,#d35400);color:#fff;padding:10px 14px;border-radius:10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div>🔄 <strong>โหมดแก้ไขรายงาน</strong> — กำลังแก้รายงานเดิม กดส่งเพื่อบันทึกทับ</div>
+      <button class="btn btn-sm" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3)" onclick="cancelRecount()">✕ ยกเลิกแก้ไข</button>
+    </div>
     <div class="card" style="padding:12px 14px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
         <div>
           <div style="font-weight:700;font-size:.95rem" id="countFarmLabel">-</div>
           <div style="font-size:.8rem;color:#777" id="countDateLabel">-</div>
-          <div style="font-size:.75rem;color:#bbb" id="countReportLabel">-</div>
+          <div style="font-size:.75rem;color:#bbb" id="countCntLabel">-</div>
         </div>
         <div style="font-size:.82rem;color:#888" id="countSubmitterLabel">-</div>
       </div>
     </div>
 
-    <!-- Current Barn Bar -->
     <div class="barn-bar" id="barnBar">
       <div>
         <div style="font-size:.72rem;opacity:.8">เล้าปัจจุบัน</div>
@@ -296,25 +417,19 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
       <div class="barn-count" id="barnCountLabel">0 ตัว</div>
     </div>
 
-    <div class="card">
-      <h2>🔍 กรอกรหัสหมู</h2>
-      <div class="input-row">
-        <input type="text" id="pigInput" placeholder="เช่น 29-2-2313-2666 หรือ 42CB-2-2313-4702" onkeypress="if(event.key==='Enter')addPig()">
-        <button class="btn btn-primary" onclick="addPig()">+ เพิ่ม</button>
-      </div>
-      <p style="font-size:.78rem;color:#aaa">📱 สแกน QR แล้ว Enter หรือพิมพ์ตรงๆ | -1- = ♂ พ่อ &nbsp; -2- = ♀ แม่</p>
-      <hr style="margin:10px 0">
-      <div style="font-size:.82rem;font-weight:600;color:var(--primary);margin-bottom:6px">🔎 ค้นหาจากพันธุ์ประวัติ (คีย์เบอร์หู 4 ตัวท้าย)</div>
-      <div class="input-row">
-        <input type="text" id="searchInput" placeholder="เช่น 1833, 4702, 9961..." maxlength="10" oninput="searchBreedingRecord(this.value)">
-        <button class="btn btn-gray btn-sm" onclick="clearSearch()">✕</button>
-      </div>
-      <div id="searchResults" style="display:none;max-height:200px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px;margin-top:4px;background:#fff"></div>
-    </div>
-
     <div class="card" style="padding:10px 14px">
       <label style="margin-bottom:4px">📝 หมายเหตุเล้านี้ <span style="color:#aaa;font-weight:400">(ไม่บังคับ)</span></label>
-      <textarea id="barnNote" rows="2" placeholder="เช่น มีหมูป่วย 2 ตัว, รอฉีดวัคซีน..." style="width:100%;padding:8px 12px;border:2px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:.88rem;resize:vertical;outline:none" oninput="autoSaveSession()"></textarea>
+      <textarea id="barnNote" rows="2" placeholder="เช่น มีหมูป่วย 2 ตัว..." style="width:100%;padding:8px 12px;border:2px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:.88rem;resize:vertical;outline:none" oninput="autoSaveSession()"></textarea>
+    </div>
+
+    <div class="card">
+      <h2>🔍 กรอกรหัสหมู / ค้นหาเบอร์หู</h2>
+      <div class="search-box">
+        <input type="text" id="pigSearch" placeholder="รหัสเต็ม (29-2-2313-2666) หรือเบอร์หู 4 ตัว (2666)" 
+          oninput="handleSearch(this.value)" onkeydown="handleKeyDown(event)">
+        <div class="dropdown" id="searchDropdown"></div>
+      </div>
+      <p style="font-size:.75rem;color:#999;margin-top:6px">💡 พิมพ์ 4 ตัวท้าย → ค้นหาด่วน | พิมพ์รหัสเต็ม → กด Enter เพิ่มทันที</p>
     </div>
 
     <div id="alertBox" class="alert hidden"></div>
@@ -323,29 +438,29 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
       <h2>
         📋 รายการในเล้านี้ (<span id="pigCount">0</span> ตัว)
         <div style="margin-left:auto;display:flex;gap:6px">
-          <button class="btn btn-orange btn-sm" onclick="saveBarnAndNew()" id="newBarnBtn">🏚️ บันทึก+เล้าใหม่</button>
-          <button class="btn btn-red btn-sm" onclick="clearCurrentBarn()" id="clearBtn">🗑️ ล้าง</button>
+          <button class="btn btn-orange btn-sm" onclick="saveBarnAndNew()">🏚️ บันทึก+เล้าใหม่</button>
+          <button class="btn btn-red btn-sm" onclick="clearCurrentBarn()">🗑️ ล้าง</button>
         </div>
       </h2>
       <div id="pigList"><div class="empty">ยังไม่มีรายการ</div></div>
     </div>
 
-    <!-- Saved Barns -->
     <div id="savedBarnsSection" style="display:none">
       <div class="card">
         <h2>✅ เล้าที่บันทึกแล้ว (<span id="savedBarnCount">0</span> เล้า)</h2>
         <div id="savedBarnList"></div>
       </div>
     </div>
+    </div><!-- /countActive -->
   </div>
 
   <!-- สรุปผล -->
   <div id="page-summary" class="page">
     <div id="summaryAlert" class="alert hidden"></div>
-    <div class="card" id="summaryCard"><div class="empty">ยังไม่มีข้อมูล</div></div>
+    <div class="card" id="summaryCard"><div class="empty">ยังไม่มีข้อมูล — ไปหน้าตรวจนับก่อน</div></div>
     <div id="summaryButtons" style="display:none">
       <div class="row">
-        <button class="btn btn-green" onclick="submitReport()">📤 ส่งผลตรวจนับ</button>
+        <button class="btn btn-green" onclick="submitReport()" id="submitBtn">📤 ส่งผลตรวจนับ</button>
         <button class="btn btn-blue" onclick="exportExcel()">📥 Export Excel</button>
       </div>
       <button class="btn btn-gray btn-full mt-8" onclick="printReport()">🖨️ พิมพ์ / Export PDF</button>
@@ -356,73 +471,63 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
   <div id="page-dashboard" class="page">
     <div class="card">
       <h2>📊 Dashboard สรุปภาพรวม</h2>
-      <button class="btn btn-primary btn-sm" onclick="loadDashboard()" style="margin-bottom:12px">🔄 รีเฟรช</button>
-      <div id="dashContent"><div class="empty">กด รีเฟรช เพื่อโหลดข้อมูล</div></div>
+      <div id="dashContent"><div class="empty">⏳ กำลังโหลด...</div></div>
     </div>
   </div>
 
   <!-- รายงาน -->
   <div id="page-history" class="page">
-    <div id="syncBar" class="sync-bar hidden">
-      ⚠️ รอซิงค์ <span id="pendingCount">0</span> รายการ
-      <button class="btn btn-primary btn-sm" onclick="syncPending()">☁️ ซิงค์ทันที</button>
-    </div>
     <div class="card">
-      <h2>🗂️ รายงานย้อนหลัง</h2>
-      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-        <button class="btn btn-primary btn-sm" onclick="loadHistory()">🔄 Google Sheets</button>
-        <button class="btn btn-sm" style="background:#eee" onclick="loadLocalHistory()">📱 ในเครื่อง</button>
-      </div>
+      <h2>🗂️ รายงานย้อนหลัง <span style="background:var(--green);color:#fff;font-size:.7rem;padding:2px 7px;border-radius:10px;margin-left:6px">● Real-time</span></h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
         <input type="text" id="filterFarm" placeholder="🏠 กรองตามฟาร์ม" style="flex:1;min-width:120px;padding:7px 10px;font-size:.83rem" oninput="applyFilter()">
         <input type="text" id="filterSubmitter" placeholder="👤 ผู้ตรวจนับ" style="flex:1;min-width:100px;padding:7px 10px;font-size:.83rem" oninput="applyFilter()">
         <input type="date" id="filterDateFrom" style="flex:1;min-width:120px;padding:7px 10px;font-size:.83rem" onchange="applyFilter()">
         <input type="date" id="filterDateTo" style="flex:1;min-width:120px;padding:7px 10px;font-size:.83rem" onchange="applyFilter()">
-        <button class="btn btn-sm btn-gray" onclick="clearFilter()">✕ ล้างตัวกรอง</button>
+        <button class="btn btn-sm btn-gray" onclick="clearFilter()">✕ ล้าง</button>
       </div>
       <div id="filterCount" style="font-size:.8rem;color:#888;margin-bottom:8px"></div>
-      <div id="historyList"><div class="empty">กด "Google Sheets" เพื่อโหลดรายงานทั้งทีม</div></div>
+      <div id="combinedReportsSection"></div>
+      <div id="historyList"><div class="empty">⏳ กำลังโหลด...</div></div>
+    </div>
+  </div>
+
+  <!-- แจ้งเตือน -->
+  <div id="page-alerts" class="page">
+    <div class="card">
+      <h2>🔔 ศูนย์แจ้งเตือน <span style="background:var(--green);color:#fff;font-size:.7rem;padding:2px 7px;border-radius:10px;margin-left:6px">● Real-time</span></h2>
+      <p style="font-size:.85rem;color:#666;margin-bottom:14px">รายการที่ต้องดำเนินการและสิ่งที่ต้องตรวจสอบ</p>
+      <div id="alertsContent"><div class="empty">⏳ กำลังโหลด...</div></div>
     </div>
   </div>
 </div>
 
-<!-- Edit Barn Overlay -->
-<div id="editBarnOverlay" class="overlay hidden">
+<!-- Permission Modal -->
+<div id="permissionOverlay" class="overlay hidden">
   <div class="overlay-box" style="max-width:500px">
-    <button class="close-btn" onclick="closeEditBarn()">✕ ปิด</button>
-    <h3 id="editBarnTitle">✏️ แก้ไขเล้า</h3>
-    <div style="margin-bottom:10px">
-      <div class="input-row">
-        <input type="text" id="editPigInput" placeholder="เช่น 29-2-2313-2666" onkeypress="if(event.key==='Enter')addPigToEditBarn()">
-        <button class="btn btn-primary btn-sm" onclick="addPigToEditBarn()">+ เพิ่ม</button>
-      </div>
-      <div id="editSearchResults" style="display:none;max-height:160px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;margin-top:4px"></div>
-      <input type="text" id="editSearchInput" placeholder="🔎 ค้นหาพันธุ์ประวัติ (4 ตัวท้าย)" style="margin-top:6px" oninput="searchForEdit(this.value)">
+    <button class="close-btn" onclick="closePermissionModal()">✕ ปิด</button>
+    <h3 id="permTitle">🔧 กำหนดสิทธิ์การใช้งาน</h3>
+    <p id="permUserInfo" style="font-size:.85rem;color:#666;margin-bottom:14px"></p>
+    
+    <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-gray" onclick="permSetPreset('admin')">⚙️ Admin (ทั้งหมด)</button>
+      <button class="btn btn-sm btn-gray" onclick="permSetPreset('user')">👤 User (ปกติ)</button>
+      <button class="btn btn-sm btn-gray" onclick="permSetPreset('counter')">📋 ผู้นับเท่านั้น</button>
+      <button class="btn btn-sm btn-gray" onclick="permSetPreset('viewer')">👀 ดูอย่างเดียว</button>
     </div>
-    <div id="editBarnPigList" style="max-height:300px;overflow-y:auto"></div>
-    <div style="margin-top:10px">
-      <label>📝 หมายเหตุเล้า</label>
-      <textarea id="editBarnNote" rows="2" placeholder="หมายเหตุ..." style="width:100%;padding:8px 12px;border:2px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:.88rem;resize:vertical;outline:none"></textarea>
-    </div>
-    <div style="margin-top:12px;display:flex;gap:8px">
-      <button class="btn btn-green btn-full" onclick="saveEditBarn()">💾 บันทึกการแก้ไข</button>
+    
+    <hr style="margin:10px 0">
+    <div id="permList"></div>
+    
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-green btn-full" onclick="savePermissions()">💾 บันทึก</button>
+      <button class="btn btn-gray" onclick="closePermissionModal()">ยกเลิก</button>
     </div>
   </div>
 </div>
 
-<!-- Manual Entry Overlay -->
-<div id="manualOverlay" class="overlay hidden">
-  <div class="overlay-box" style="max-width:340px">
-    <h3>➕ บันทึกแบบไม่มีประวัติ</h3>
-    <p style="font-size:.88rem;color:#666;margin-bottom:12px">รหัส: <strong id="manualIdLabel">-</strong></p>
-    <p style="font-size:.88rem;color:#555;margin-bottom:10px">เลือกเพศ:</p>
-    <div style="display:flex;gap:10px">
-      <button class="btn btn-full" style="background:var(--sow);color:#fff;font-size:1rem;padding:14px" onclick="confirmManualEntry('sow')">♀ แม่พันธุ์</button>
-      <button class="btn btn-full" style="background:var(--boar);color:#fff;font-size:1rem;padding:14px" onclick="confirmManualEntry('boar')">♂ พ่อพันธุ์</button>
-    </div>
-    <button class="btn btn-gray btn-full mt-8" onclick="closeManual()">ยกเลิก</button>
-  </div>
-</div>
+<!-- Toast -->
+<div class="toast" id="toast"></div>
 
 <!-- Detail Overlay -->
 <div id="detailOverlay" class="overlay hidden" onclick="closeDetail(event)">
@@ -438,99 +543,438 @@ hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
   <div class="overlay-box" style="max-width:340px">
     <h3>🏚️ เล้าใหม่</h3>
     <p style="font-size:.88rem;color:#666;margin-bottom:12px">กรอกชื่อ/เลขเล้าถัดไป</p>
-    <input type="text" id="newBarnInput" placeholder="เช่น F2, B2, เล้า2" onkeypress="if(event.key==='Enter')confirmNewBarn()">
+    <input type="text" id="newBarnInput" placeholder="เช่น F2, B2" onkeypress="if(event.key==='Enter')confirmNewBarn()">
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btn btn-primary btn-full" onclick="confirmNewBarn()">✔ ยืนยัน</button>
+      <button class="btn btn-primary btn-full" onclick="confirmNewBarn()">✔ ยืนยัน เล้าใหม่</button>
       <button class="btn btn-gray" onclick="cancelNewBarn()">ยกเลิก</button>
     </div>
+    <hr style="margin:14px 0">
+    <button class="btn btn-green btn-full" onclick="finishCounting()">✅ จบการตรวจนับ → ไปสรุปผล</button>
+    <p style="font-size:.78rem;color:#888;margin-top:8px;text-align:center">ถ้าเล้านี้เป็นเล้าสุดท้าย กดปุ่มนี้เพื่อไปสรุปผลเลย</p>
+  </div>
+</div>
+
+<!-- Manual Entry Overlay -->
+<div id="manualOverlay" class="overlay hidden">
+  <div class="overlay-box" style="max-width:340px">
+    <h3>➕ บันทึกแบบไม่มีประวัติ</h3>
+    <p style="font-size:.88rem;color:#666;margin-bottom:12px">รหัส: <strong id="manualIdLabel">-</strong></p>
+    <p style="font-size:.88rem;color:#555;margin-bottom:10px">เลือกเพศ:</p>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-full" style="background:var(--sow);color:#fff;font-size:1rem;padding:14px" onclick="confirmManualEntry('sow')">♀ แม่</button>
+      <button class="btn btn-full" style="background:var(--boar);color:#fff;font-size:1rem;padding:14px" onclick="confirmManualEntry('boar')">♂ พ่อ</button>
+    </div>
+    <button class="btn btn-gray btn-full mt-8" onclick="closeManual()">ยกเลิก</button>
+  </div>
+</div>
+
+<!-- Edit Barn Overlay -->
+<div id="editBarnOverlay" class="overlay hidden">
+  <div class="overlay-box" style="max-width:500px">
+    <button class="close-btn" onclick="closeEditBarn()">✕ ปิด</button>
+    <h3 id="editBarnTitle">✏️ แก้ไขเล้า</h3>
+    <div class="search-box mb-12">
+      <input type="text" id="editPigSearch" placeholder="พิมพ์รหัสเต็มหรือ 4 ตัวท้าย" oninput="handleEditSearch(this.value)" onkeydown="handleEditKeyDown(event)">
+      <div class="dropdown" id="editDropdown"></div>
+    </div>
+    <div id="editBarnPigList" style="max-height:300px;overflow-y:auto"></div>
+    <label class="mt-8">📝 หมายเหตุเล้า</label>
+    <textarea id="editBarnNote" rows="2" placeholder="หมายเหตุ..." style="width:100%;padding:8px 12px;border:2px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:.88rem;resize:vertical;outline:none"></textarea>
+    <button class="btn btn-green btn-full mt-8" onclick="saveEditBarn()">💾 บันทึก</button>
   </div>
 </div>
 
 <script>
 // ============================================================
-// USERS & AUTH
+// FIREBASE CONFIG
 // ============================================================
-const DEFAULT_USERS = [
-  {username:'admin', password:'pig@Admin', role:'admin', displayName:'ผู้ดูแลระบบ'},
-  {username:'piguser', password:'pig@1234', role:'user', displayName:'ผู้ตรวจนับ'}
-];
+const firebaseConfig = {
+  apiKey: "AIzaSyAmQBIEPlzsRo2IXbRPT0YXq797x4ztdWc",
+  authDomain: "piggy-checkin.firebaseapp.com",
+  databaseURL: "https://piggy-checkin-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "piggy-checkin",
+  storageBucket: "piggy-checkin.firebasestorage.app",
+  messagingSenderId: "835891516690",
+  appId: "1:835891516690:web:6696024d5f2468e30f0fcb"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
 
-function getUsers() {
-  const raw = localStorage.getItem('pig_users');
-  return raw ? JSON.parse(raw) : DEFAULT_USERS;
-}
-function saveUsers(users) { localStorage.setItem('pig_users', JSON.stringify(users)); }
+// Secondary app — ใช้สร้าง user โดยไม่ logout admin
+const secondaryApp = firebase.initializeApp(firebaseConfig, 'Secondary');
+const secondaryAuth = secondaryApp.auth();
 
-let currentUser = null; // {username, role, displayName}
+// ============================================================
+// STATE
+// ============================================================
+let currentUser = null;
+let userProfile = { displayName:'', role:'user' };
+let allFarms = {};      // {farmId: {name, pedigree, earTagIndex}}
+let allReports = [];    // [{...report}]
+let allUsers = {};      // {uid: {email, displayName, role}}
 
-function doLogin() {
-  const u = document.getElementById('loginUser').value.trim();
-  const p = document.getElementById('loginPass').value;
-  const users = getUsers();
-  const found = users.find(x => x.username === u && x.password === p);
-  if (!found) {
-    document.getElementById('loginErr').style.display = 'block';
-    document.getElementById('loginErr').textContent = '❌ Username หรือ Password ไม่ถูกต้อง';
-    return;
+let currentFarm = '', currentFarmId = '', currentDate = '', currentSubmitter = '', currentCntNumber = '';
+let currentBarn = '';
+let currentPigs = [];
+let savedBarns = [];
+
+let uploadedExcel = null; // {pedigree:[], earTagIndex:{}}
+let _recountReportId = null; // ถ้ามีค่า = กำลังอยู่ใน recount mode (จะ update รายงานเดิม)
+let _editBarnIdx = -1, _editBarnPigs = [];
+let _manualId = '';
+let _historyFiltered = [];
+
+// ============================================================
+// AUTH
+// ============================================================
+auth.onAuthStateChanged(async (user) => {
+  if (user) {
+    currentUser = user;
+    await loadUserProfile();
+    showApp();
+  } else {
+    currentUser = null;
+    showLogin();
   }
-  currentUser = found;
+});
+
+async function loadUserProfile() {
+  const snap = await db.ref('users/' + currentUser.uid).once('value');
+  if (snap.exists()) {
+    userProfile = snap.val();
+  } else {
+    // First time login → create profile (default user)
+    userProfile = { 
+      email: currentUser.email, 
+      displayName: currentUser.email.split('@')[0], 
+      role: 'user' 
+    };
+    await db.ref('users/' + currentUser.uid).set(userProfile);
+  }
+  
+  // Listen for changes ของ user ตัวเอง (เผื่อ admin แก้สิทธิ์)
+  db.ref('users/' + currentUser.uid).on('value', snap => {
+    if (snap.exists()) {
+      const newProfile = snap.val();
+      // ถ้า permissions เปลี่ยน → rebuild nav
+      const oldPerms = JSON.stringify(getUserPermissions(userProfile));
+      userProfile = newProfile;
+      const newPerms = JSON.stringify(getUserPermissions(userProfile));
+      if (oldPerms !== newPerms) {
+        toast('🔄 สิทธิ์การเข้าถึงของคุณถูกอัพเดท');
+        buildNav();
+      }
+    }
+  });
+}
+
+function showLogin() {
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appScreen').style.display = 'none';
+}
+
+function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').style.display = 'block';
-  document.getElementById('userBadge').textContent = `👤 ${found.displayName} (${found.role === 'admin' ? 'Admin' : 'User'}) | ออกจากระบบ`;
+  document.getElementById('userBadge').textContent = `👤 ${userProfile.displayName} (${userProfile.role}) | ออก`;
   buildNav();
+  subscribeFarms();
+  subscribeReports();
+  if (userProfile.role === 'admin') subscribeUsers();
   checkDraftSession();
+}
+
+function showResetPassword() {
+  document.querySelector('#loginScreen .login-box:first-of-type').style.display = 'none';
+  document.getElementById('resetPasswordBox').style.display = 'block';
+  // Pre-fill if user already typed email
+  const loginEmail = document.getElementById('loginEmail').value.trim();
+  if (loginEmail) document.getElementById('resetEmail').value = loginEmail;
+  document.getElementById('resetEmail').focus();
+}
+
+function showLoginForm() {
+  document.querySelector('#loginScreen .login-box:first-of-type').style.display = 'block';
+  document.getElementById('resetPasswordBox').style.display = 'none';
+  document.getElementById('resetMsg').style.display = 'none';
+}
+
+async function sendResetEmail() {
+  const email = document.getElementById('resetEmail').value.trim();
+  const msg = document.getElementById('resetMsg');
+  const btn = document.getElementById('resetBtn');
+  
+  if (!email) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = '❌ กรุณากรอกอีเมล';
+    msg.style.display = 'block';
+    return;
+  }
+  
+  btn.disabled = true;
+  msg.style.color = 'var(--primary)';
+  msg.textContent = '⏳ กำลังส่ง...';
+  msg.style.display = 'block';
+  
+  try {
+    await auth.sendPasswordResetEmail(email);
+    msg.style.color = 'var(--green)';
+    msg.innerHTML = '✅ ส่งลิงค์รีเซ็ตไปที่ <strong>' + email + '</strong> แล้ว<br><span style="font-size:.78rem;color:#888">เช็คในกล่อง Inbox หรือ Spam ของอีเมลคุณ</span>';
+  } catch (err) {
+    msg.style.color = 'var(--red)';
+    if (err.code === 'auth/user-not-found') {
+      msg.textContent = '❌ ไม่พบ user นี้ในระบบ';
+    } else if (err.code === 'auth/invalid-email') {
+      msg.textContent = '❌ รูปแบบอีเมลไม่ถูกต้อง';
+    } else {
+      msg.textContent = '❌ ส่งไม่สำเร็จ: ' + err.message;
+    }
+  }
+  btn.disabled = false;
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const err = document.getElementById('loginErr');
+  err.classList.remove('show');
+
+  if (!email || !pass) {
+    err.textContent = 'กรุณากรอกอีเมลและรหัสผ่าน';
+    err.classList.add('show');
+    return;
+  }
+
+  try {
+    await auth.signInWithEmailAndPassword(email, pass);
+  } catch (e) {
+    let msg = 'เข้าสู่ระบบไม่สำเร็จ';
+    if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+      msg = '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+    } else if (e.code === 'auth/invalid-email') {
+      msg = '❌ รูปแบบอีเมลไม่ถูกต้อง';
+    }
+    err.textContent = msg;
+    err.classList.add('show');
+  }
 }
 
 function doLogout() {
   if (!confirm('ออกจากระบบ?')) return;
-  currentUser = null;
-  document.getElementById('appScreen').style.display = 'none';
-  document.getElementById('loginScreen').style.display = 'flex';
-  document.getElementById('loginUser').value = '';
-  document.getElementById('loginPass').value = '';
-  document.getElementById('loginErr').style.display = 'none';
+  auth.signOut();
 }
 
 // ============================================================
-// USER MANAGEMENT (ADMIN)
+// USER MANAGEMENT (Admin)
 // ============================================================
+function subscribeUsers() {
+  db.ref('users').on('value', snap => {
+    allUsers = snap.val() || {};
+    renderUserTable();
+  });
+}
+
+// ============================================================
+// PERMISSION MODAL
+// ============================================================
+let _permEditUid = null;
+let _permCurrent = {};
+
+function openPermissionModal(uid) {
+  _permEditUid = uid;
+  const user = allUsers[uid];
+  _permCurrent = {...getUserPermissions(user)};
+  
+  document.getElementById('permTitle').textContent = `🔧 กำหนดสิทธิ์: ${user.displayName}`;
+  document.getElementById('permUserInfo').textContent = `📧 ${user.email} | สิทธิ์ปัจจุบัน: ${user.role}`;
+  
+  renderPermissionList();
+  document.getElementById('permissionOverlay').classList.remove('hidden');
+}
+
+function renderPermissionList() {
+  const el = document.getElementById('permList');
+  el.innerHTML = ALL_MENUS.map(m => {
+    const checked = _permCurrent[m.id] ? 'checked' : '';
+    return `<label style="display:flex;align-items:flex-start;gap:10px;padding:10px;background:#f9f9f9;border-radius:8px;margin-bottom:6px;cursor:pointer;border:2px solid transparent;${checked?'border-color:var(--green);background:#f0fdf4':''}">
+      <input type="checkbox" id="perm_${m.id}" ${checked} onchange="_permCurrent['${m.id}']=this.checked;renderPermissionList()" style="width:18px;height:18px;margin-top:2px;cursor:pointer">
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:.92rem;color:var(--primary)">${m.label}${m.adminOnly?' <span style="font-size:.7rem;background:var(--sow);color:#fff;padding:1px 6px;border-radius:8px;margin-left:4px">Admin</span>':''}</div>
+        <div style="font-size:.78rem;color:#888;margin-top:2px">${m.desc}</div>
+      </div>
+    </label>`;
+  }).join('');
+}
+
+function permSetPreset(preset) {
+  if (preset === 'admin') {
+    _permCurrent = {admin:true,setup:true,count:true,summary:true,dashboard:true,history:true,alerts:true};
+  } else if (preset === 'user') {
+    _permCurrent = {admin:false,setup:true,count:true,summary:true,dashboard:true,history:true,alerts:true};
+  } else if (preset === 'counter') {
+    _permCurrent = {admin:false,setup:true,count:true,summary:true,dashboard:false,history:false,alerts:false};
+  } else if (preset === 'viewer') {
+    _permCurrent = {admin:false,setup:false,count:false,summary:false,dashboard:true,history:true,alerts:true};
+  }
+  renderPermissionList();
+}
+
+async function savePermissions() {
+  if (!_permEditUid) return;
+  
+  // ตรวจสอบ: ต้องเปิดอย่างน้อย 1 เมนู
+  const enabled = Object.values(_permCurrent).filter(v=>v).length;
+  if (enabled === 0) {
+    return toast('❌ ต้องเปิดอย่างน้อย 1 เมนู');
+  }
+  
+  try {
+    await db.ref('users/' + _permEditUid + '/permissions').set(_permCurrent);
+    
+    // ถ้าเปิด admin = true แต่ role เป็น user ให้อัพเดท role ด้วย
+    if (_permCurrent.admin && allUsers[_permEditUid].role !== 'admin') {
+      await db.ref('users/' + _permEditUid + '/role').set('admin');
+    }
+    // ถ้าปิด admin = false แต่ role เป็น admin ให้ลด role เป็น user
+    else if (!_permCurrent.admin && allUsers[_permEditUid].role === 'admin') {
+      await db.ref('users/' + _permEditUid + '/role').set('user');
+    }
+    
+    closePermissionModal();
+    toast('✅ บันทึกสิทธิ์แล้ว');
+    
+    // ถ้าแก้สิทธิ์ตัวเอง ให้ reload
+    if (_permEditUid === currentUser.uid) {
+      setTimeout(() => location.reload(), 1000);
+    }
+  } catch (err) {
+    toast('❌ บันทึกไม่สำเร็จ: ' + err.message);
+  }
+}
+
+function closePermissionModal() {
+  document.getElementById('permissionOverlay').classList.add('hidden');
+  _permEditUid = null;
+}
+
 function renderUserTable() {
-  const users = getUsers();
   const t = document.getElementById('userTable');
-  t.innerHTML = `<tr><th>#</th><th>Username</th><th>ชื่อแสดง</th><th>Role</th><th>รหัสผ่าน</th><th></th></tr>` +
-    users.map((u,i) => `
-      <tr>
+  if (!t) return;
+  const users = Object.entries(allUsers);
+  t.innerHTML = `<tr><th>#</th><th>Email</th><th>ชื่อแสดง</th><th>Role</th><th>จัดการ</th></tr>` +
+    users.map(([uid, u], i) => {
+      const isSelf = currentUser && uid === currentUser.uid;
+      const perms = getUserPermissions(u);
+      const enabledCount = Object.values(perms).filter(v=>v).length;
+      return `<tr>
         <td>${i+1}</td>
-        <td><strong>${u.username}</strong></td>
+        <td style="font-size:.78rem">${u.email}${isSelf?' <span style="color:var(--green);font-size:.7rem">(คุณ)</span>':''}</td>
         <td>${u.displayName}</td>
-        <td><span class="badge ${u.role==='admin'?'badge-sow':'badge-boar'}">${u.role}</span></td>
-        <td style="color:#aaa">••••••</td>
-        <td><button class="btn btn-red btn-sm" onclick="removeUser(${i})" ${users.length<=1?'disabled':''}>ลบ</button></td>
-      </tr>`).join('');
+        <td>
+          <span class="badge ${u.role==='admin'?'badge-sow':'badge-boar'}">${u.role}</span>
+          <div style="font-size:.7rem;color:#888;margin-top:2px;">เข้าได้ ${enabledCount}/${ALL_MENUS.length} เมนู</div>
+        </td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm" style="background:#3498db;color:#fff" onclick="openPermissionModal('${uid}')">🔧 สิทธิ์</button>
+          <button class="btn btn-sm" style="background:#eee" onclick="editUserRole('${uid}','${u.role}')">Role</button>
+          ${!isSelf?`<button class="btn btn-red btn-sm" onclick="removeUserProfile('${uid}','${u.email}')">ลบ</button>`:''}
+        </td>
+      </tr>`;
+    }).join('');
 }
 
-function addUser() {
-  const un = document.getElementById('newUsername').value.trim();
-  const pw = document.getElementById('newPassword').value.trim();
-  const role = document.getElementById('newRole').value;
+async function removeUserProfile(uid, email) {
+  if (!confirm('ลบ profile ของ ' + email + '?\n\n⚠️ การลบนี้จะลบเฉพาะ profile ในแอพ\nถ้าต้องการลบจาก Firebase Auth ด้วย ให้ไปลบใน Firebase Console → Authentication')) return;
+  await db.ref('users/' + uid).remove();
+  toast('✅ ลบ profile แล้ว');
+}
+
+async function editUserRole(uid, currentRole) {
+  const newRole = currentRole === 'admin' ? 'user' : 'admin';
+  if (!confirm(`เปลี่ยน role เป็น ${newRole}?`)) return;
+  await db.ref(`users/${uid}/role`).set(newRole);
+  toast('✅ เปลี่ยน role แล้ว');
+}
+
+async function createNewUser() {
+  const email = document.getElementById('newEmail').value.trim();
+  const password = document.getElementById('newPassword').value;
   const dn = document.getElementById('newDisplayName').value.trim();
-  if (!un || !pw || !dn) return alert('กรุณากรอกข้อมูลให้ครบ');
-  const users = getUsers();
-  if (users.find(u => u.username === un)) return alert('Username นี้มีอยู่แล้ว');
-  users.push({username:un, password:pw, role, displayName:dn});
-  saveUsers(users);
-  renderUserTable();
-  document.getElementById('newUsername').value = '';
-  document.getElementById('newPassword').value = '';
-  document.getElementById('newDisplayName').value = '';
+  const role = document.getElementById('newRole').value;
+  
+  if (!email || !password || !dn) return toast('❌ กรุณากรอกข้อมูลให้ครบ');
+  if (password.length < 6) return toast('❌ รหัสผ่านต้องอย่างน้อย 6 ตัว');
+  
+  const btn = document.getElementById('createUserBtn');
+  const status = document.getElementById('createUserStatus');
+  btn.disabled = true;
+  status.style.display = 'block';
+  status.style.color = 'var(--primary)';
+  status.textContent = '⏳ กำลังสร้าง user...';
+  
+  try {
+    // สร้าง user ใน Firebase Auth ผ่าน secondary app (ไม่กระทบ admin session)
+    const userCred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
+    const newUid = userCred.user.uid;
+    
+    // บันทึก profile ใน Realtime Database
+    await db.ref('users/' + newUid).set({
+      email,
+      displayName: dn,
+      role
+    });
+    
+    // Sign out secondary user (admin ยังคง login อยู่ในแอพหลัก)
+    await secondaryAuth.signOut();
+    
+    status.style.color = 'var(--green)';
+    status.textContent = `✅ สร้าง user ${email} (${role}) สำเร็จ`;
+    
+    // Clear form
+    document.getElementById('newEmail').value = '';
+    document.getElementById('newPassword').value = '';
+    document.getElementById('newDisplayName').value = '';
+    document.getElementById('newRole').value = 'user';
+    
+    setTimeout(() => { status.style.display = 'none'; }, 4000);
+  } catch (err) {
+    status.style.color = 'var(--red)';
+    let msg = err.message;
+    if (err.code === 'auth/email-already-in-use') msg = '❌ Email นี้ถูกใช้แล้ว';
+    if (err.code === 'auth/invalid-email') msg = '❌ รูปแบบ Email ไม่ถูกต้อง';
+    if (err.code === 'auth/weak-password') msg = '❌ รหัสผ่านต้องอย่างน้อย 6 ตัว';
+    status.textContent = msg;
+  }
+  btn.disabled = false;
 }
 
-function removeUser(i) {
-  const users = getUsers();
-  if (!confirm('ลบผู้ใช้ ' + users[i].displayName + '?')) return;
-  users.splice(i,1);
-  saveUsers(users);
-  renderUserTable();
+// ============================================================
+// PERMISSIONS
+// ============================================================
+const ALL_MENUS = [
+  {id:'admin',label:'⚙️ ตั้งค่าระบบ',adminOnly:true,desc:'อัพโหลดพันธุ์ประวัติ, จัดการ User'},
+  {id:'setup',label:'📝 เริ่มนับ',desc:'ตั้งค่าฟาร์ม วันที่ และเริ่มตรวจนับ'},
+  {id:'count',label:'📋 ตรวจนับ',desc:'หน้าคีย์ข้อมูลหมูแต่ละเล้า'},
+  {id:'summary',label:'📊 สรุปผล',desc:'ดูสรุปและส่งผลตรวจนับ'},
+  {id:'dashboard',label:'📈 Dashboard',desc:'ดูสรุปภาพรวมและกราฟ'},
+  {id:'history',label:'🗂️ รายงาน',desc:'ดูรายงานย้อนหลังทั้งหมด'},
+  {id:'alerts',label:'🔔 แจ้งเตือน',desc:'ดูรายการที่ต้องตรวจสอบ'}
+];
+
+function getUserPermissions(profile) {
+  // ถ้ามี permissions ส่วนตัว ใช้ตามนั้น
+  if (profile.permissions) return profile.permissions;
+  // Default ตาม role
+  if (profile.role === 'admin') {
+    return {admin:true,setup:true,count:true,summary:true,dashboard:true,history:true,alerts:true};
+  }
+  return {admin:false,setup:true,count:true,summary:true,dashboard:true,history:true,alerts:true};
+}
+
+function hasPermission(menuId) {
+  const perms = getUserPermissions(userProfile);
+  return !!perms[menuId];
 }
 
 // ============================================================
@@ -538,352 +982,450 @@ function removeUser(i) {
 // ============================================================
 function buildNav() {
   const nav = document.getElementById('navTabs');
-  const isAdmin = currentUser.role === 'admin';
-  const tabs = isAdmin
-    ? [{id:'admin',label:'⚙️ ตั้งค่าระบบ'},{id:'setup',label:'📝 เริ่มนับ'},{id:'count',label:'📋 ตรวจนับ'},{id:'summary',label:'📊 สรุปผล'},{id:'dashboard',label:'📈 Dashboard'},{id:'history',label:'🗂️ รายงาน'}]
-    : [{id:'setup',label:'📝 เริ่มนับ'},{id:'count',label:'📋 ตรวจนับ'},{id:'summary',label:'📊 สรุปผล'},{id:'dashboard',label:'📈 Dashboard'},{id:'history',label:'🗂️ รายงาน'}];
+  const perms = getUserPermissions(userProfile);
+  const tabs = ALL_MENUS.filter(m => perms[m.id]);
   nav.innerHTML = tabs.map(t =>
     `<button class="nav-tab" onclick="showPage('${t.id}',event)">${t.label}</button>`).join('');
-  loadFarmsFromLocal();
-  // ถ้ามี API URL ดึงพันธุ์ประวัติจาก Cloud อัตโนมัติ
-  if (API_URL) {
-    fetchFarmsFromCloud().catch(() => {});
+  // เปิดหน้าแรกที่มีสิทธิ์
+  const firstTab = tabs[0]?.id || 'setup';
+  showPage(firstTab);
+  
+  // Default submitter to displayName
+  if (!document.getElementById('submitterName').value) {
+    document.getElementById('submitterName').value = userProfile.displayName;
   }
-  showPage(isAdmin ? 'admin' : 'setup', null, true);
-  if (isAdmin) { renderUserTable(); if (API_URL) document.getElementById('apiUrl').value = API_URL; updateFarmUI(); }
 }
 
-function showPage(name, event, init) {
+function showPage(name, event) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   const pg = document.getElementById('page-' + name);
   if (pg) pg.classList.add('active');
   if (event && event.target) event.target.classList.add('active');
-  else if (!init) { const tabs = document.querySelectorAll('.nav-tab'); tabs.forEach(t => { if(t.textContent.includes(name)||t.getAttribute('onclick').includes(`'${name}'`)) t.classList.add('active'); }); }
+  else { 
+    const tabs = document.querySelectorAll('.nav-tab'); 
+    tabs.forEach(t => { 
+      if (t.getAttribute('onclick') && t.getAttribute('onclick').includes(`'${name}'`)) t.classList.add('active'); 
+    }); 
+  }
   if (name === 'summary') renderSummary();
-  if (name === 'history') { checkPending(); loadLocalHistory(); }
-  if (name === 'dashboard') loadDashboard();
-  if (name === 'admin') renderUserTable();
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'history') renderHistory();
+  if (name === 'alerts') renderAlerts();
+  if (name === 'count') {
+    const hasSession = currentFarmId && currentCntNumber;
+    document.getElementById('countEmpty').style.display = hasSession ? 'none' : 'block';
+    document.getElementById('countActive').style.display = hasSession ? 'block' : 'none';
+  }
 }
 
 // ============================================================
-// FILE UPLOAD
+// EXCEL UPLOAD
 // ============================================================
-let farms = {};
+function handleExcelFile(files) {
+  if (!files.length) return;
+  const file = files[0];
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'binary'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, {header:1});
+      
+      const pedigree = [];
+      const earTagIndex = {};
+      const seen = new Set();
 
-function saveFarmsToLocal() {
-  const toSave = {};
-  Object.entries(farms).forEach(([name, idSet]) => {
-    toSave[name] = [...idSet];
-  });
-  localStorage.setItem('pig_farms', JSON.stringify(toSave));
-}
-
-// ── Sync farms TO cloud (chunked) ──
-async function syncFarmsToCloud() {
-  if (!API_URL) return alert('กรุณาตั้งค่า Apps Script URL ก่อน');
-  if (!Object.keys(farms).length) return alert('ยังไม่มีพันธุ์ประวัติที่จะซิงค์');
-  const btn  = document.getElementById('syncFarmBtn');
-  const prog = document.getElementById('syncFarmProgress');
-  const msg  = document.getElementById('syncFarmMsg');
-  btn.disabled = true;
-  prog.style.display = 'block';
-  const CHUNK = 50;
-  let totalSent = 0;
-  try {
-    for (const [farmName, idSet] of Object.entries(farms)) {
-      const ids = [...idSet];
-      for (let i = 0; i < ids.length; i += CHUNK) {
-        const chunk   = ids.slice(i, i + CHUNK);
-        const isFirst = i === 0;
-        const params  = new URLSearchParams({
-          action: 'saveFarmChunk', farmName,
-          ids: JSON.stringify(chunk),
-          isFirst: String(isFirst), _t: Date.now()
+      data.forEach(row => {
+        row.forEach(cell => {
+          const id = String(cell || '').trim().toUpperCase();
+          if (!id || id.length < 10 || seen.has(id)) return;
+          const match = id.match(/^([A-Z0-9]+)-([12])-(\d+)-(\d+)$/);
+          if (!match) return;
+          seen.add(id);
+          const earTag = match[4];
+          const sex = match[2] === '2' ? 'sow' : 'boar';
+          pedigree.push({ id, earTag, sex });
+          if (!earTagIndex[earTag]) earTagIndex[earTag] = [];
+          earTagIndex[earTag].push(id);
         });
-        await fetch(API_URL + '?' + params.toString(), {redirect:'follow'});
-        totalSent += chunk.length;
-        msg.textContent = `กำลังซิงค์ ${farmName}… (${totalSent} รายการ)`;
+      });
+      
+      uploadedExcel = { pedigree, earTagIndex };
+      
+      // ตั้งชื่อฟาร์มจากชื่อไฟล์อัตโนมัติ
+      const farmNameEl = document.getElementById('farmName');
+      farmNameEl.value = file.name.replace(/\.(xlsx|xls)$/i, '');
+      document.getElementById('farmNameSection').style.display = 'block';
+      
+      const s = document.getElementById('uploadStatus');
+      s.style.display = 'block';
+      s.style.color = 'var(--green)';
+      s.textContent = `✅ อ่านไฟล์สำเร็จ: ${pedigree.length} รายการ — ใช้ชื่อฟาร์ม "${farmNameEl.value}"`;
+      document.getElementById('uploadBtn').disabled = false;
+    } catch (err) {
+      toast('❌ อ่านไฟล์ไม่สำเร็จ: ' + err.message);
+    }
+  };
+  reader.readAsBinaryString(file);
+}
+
+async function uploadFarmToFirebase() {
+  const farmName = document.getElementById('farmName').value.trim();
+  if (!farmName) return toast('❌ กรุณาระบุชื่อฟาร์ม');
+  if (!uploadedExcel || !uploadedExcel.pedigree.length) return toast('❌ กรุณาเลือกไฟล์ก่อน');
+  
+  // ตรวจสอบว่ามีฟาร์มชื่อนี้อยู่แล้วไหม
+  const existingEntry = Object.entries(allFarms).find(([_, f]) => f.name === farmName);
+  
+  if (existingEntry) {
+    const [existingId, existingFarm] = existingEntry;
+    const oldCount = (existingFarm.pedigree || []).length;
+    const newCount = uploadedExcel.pedigree.length;
+    const msg = `🔄 พบฟาร์ม "${farmName}" ในระบบอยู่แล้ว\n\n` +
+                `📋 พันธุ์ประวัติเดิม: ${oldCount} รายการ\n` +
+                `📋 พันธุ์ประวัติใหม่: ${newCount} รายการ\n\n` +
+                `ต้องการอัพเดทพันธุ์ประวัติของฟาร์มนี้ไหม?\n\n` +
+                `✅ รายงานที่ส่งไปแล้วทั้งหมดจะไม่ได้รับผลกระทบ\n` +
+                `   (รายงานเก่าใช้ snapshot ของพันธุ์ประวัติตอนนั้น)`;
+    if (!confirm(msg)) return;
+  }
+  
+  const s = document.getElementById('uploadStatus');
+  s.textContent = '⏳ กำลังบันทึก...';
+  s.style.color = 'var(--primary)';
+  
+  try {
+    const farmId = existingEntry ? existingEntry[0] : ('farm_' + Date.now());
+    const dataToSave = {
+      name: farmName,
+      pedigree: uploadedExcel.pedigree,
+      earTagIndex: uploadedExcel.earTagIndex
+    };
+    
+    if (existingEntry) {
+      // อัพเดทฟาร์มเดิม
+      dataToSave.updatedBy = currentUser.uid;
+      dataToSave.updatedAt = firebase.database.ServerValue.TIMESTAMP;
+      await db.ref('farms/' + farmId).update(dataToSave);
+      s.textContent = `✅ อัพเดทพันธุ์ประวัติฟาร์ม "${farmName}" สำเร็จ (${uploadedExcel.pedigree.length} รายการ)`;
+    } else {
+      // สร้างฟาร์มใหม่
+      dataToSave.createdBy = currentUser.uid;
+      dataToSave.createdAt = firebase.database.ServerValue.TIMESTAMP;
+      await db.ref('farms/' + farmId).set(dataToSave);
+      s.textContent = `✅ บันทึกฟาร์มใหม่ "${farmName}" สำเร็จ (${uploadedExcel.pedigree.length} รายการ)`;
+    }
+    
+    s.style.color = 'var(--green)';
+    uploadedExcel = null;
+    document.getElementById('fileInput').value = '';
+    document.getElementById('farmName').value = '';
+    document.getElementById('farmNameSection').style.display = 'none';
+    document.getElementById('uploadBtn').disabled = true;
+  } catch (err) {
+    s.textContent = '❌ บันทึกไม่สำเร็จ: ' + err.message;
+    s.style.color = 'var(--red)';
+  }
+}
+
+// ============================================================
+// SUBSCRIBE FARMS (real-time)
+// ============================================================
+function subscribeFarms() {
+  db.ref('farms').on('value', snap => {
+    const raw = snap.val() || {};
+    // Normalize pedigree (อาจเป็น object) → array
+    allFarms = {};
+    Object.entries(raw).forEach(([fid, f]) => {
+      allFarms[fid] = {
+        ...f,
+        pedigree: toArray(f.pedigree),
+        earTagIndex: f.earTagIndex || {}
+      };
+    });
+    
+    // Admin farm list
+    const listEl = document.getElementById('farmList');
+    if (listEl) {
+      const keys = Object.keys(allFarms);
+      if (!keys.length) {
+        listEl.innerHTML = '<div class="empty">ยังไม่มีฟาร์ม</div>';
+      } else {
+        listEl.innerHTML = keys.map(fid => {
+          const f = allFarms[fid];
+          return `<span class="farm-chip">🏠 ${f.name} (${(f.pedigree||[]).length} รายการ) 
+            <span class="rm" onclick="removeFarm('${fid}','${f.name}')">×</span></span>`;
+        }).join('');
       }
     }
-    msg.textContent = '✅ ซิงค์สำเร็จ ' + totalSent + ' รายการ';
-    setTimeout(() => { prog.style.display='none'; }, 3000);
-  } catch(e) {
-    msg.textContent = '❌ ซิงค์ไม่สำเร็จ: ' + e.message;
-  }
-  btn.disabled = false;
-}
-
-// ── Fetch farms FROM cloud ──
-async function fetchFarmsFromCloud() {
-  if (!API_URL) return alert('กรุณาตั้งค่า Apps Script URL ก่อน');
-  const prog = document.getElementById('syncFarmProgress');
-  const msg  = document.getElementById('syncFarmMsg');
-  if (prog) { prog.style.display='block'; msg.textContent='⏳ กำลังดึงพันธุ์ประวัติจาก Cloud…'; }
-  try {
-    const res  = await fetch(API_URL + '?action=getFarms&_t=' + Date.now(), {redirect:'follow'});
-    const data = await res.json();
-    if (data.status === 'ok' && data.farms) {
-      const farmData = data.farms;
-      let total = 0;
-      Object.entries(farmData).forEach(([name, arr]) => {
-        farms[name] = new Set(arr);
-        total += arr.length;
-      });
-      saveFarmsToLocal();
-      updateFarmUI();
-      if (prog) { msg.textContent = '✅ โหลดพันธุ์ประวัติสำเร็จ ' + Object.keys(farmData).length + ' ฟาร์ม (' + total + ' รายการ)'; }
-      setTimeout(() => { if(prog) prog.style.display='none'; }, 3000);
-    } else throw new Error(data.message || 'ไม่พบข้อมูล');
-  } catch(e) {
-    if (prog) msg.textContent = '❌ ' + e.message;
-    else alert('ดึงพันธุ์ประวัติไม่สำเร็จ: ' + e.message);
-  }
-}
-
-function loadFarmsFromLocal() {
-  const raw = localStorage.getItem('pig_farms');
-  if (!raw) return;
-  try {
-    const saved = JSON.parse(raw);
-    Object.entries(saved).forEach(([name, arr]) => {
-      farms[name] = new Set(arr);
-    });
-    updateFarmUI();
-    if (Object.keys(farms).length > 0) {
-      console.log('โหลดพันธุ์ประวัติจากเครื่อง:', Object.keys(farms).join(', '));
+    
+    // Farm select
+    const sel = document.getElementById('farmSelect');
+    if (sel) {
+      sel.innerHTML = '<option value="">-- เลือกฟาร์ม --</option>' +
+        Object.entries(allFarms).map(([fid, f]) => `<option value="${fid}">${f.name}</option>`).join('');
     }
-  } catch(e) { console.error('โหลดพันธุ์ประวัติไม่สำเร็จ', e); }
-}
-let API_URL = localStorage.getItem('pig_api_url') || '';
-
-function handleFiles(files) {
-  Array.from(files).forEach(file => {
-    const farmName = file.name.replace(/\.(xlsx|xls)$/i,'');
-    const reader = new FileReader();
-    reader.onload = e => {
-      const wb = XLSX.read(e.target.result,{type:'binary'});
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(ws,{header:1});
-      const ids = new Set();
-      data.forEach(row => row.forEach(cell => { if(cell) ids.add(String(cell).trim().toUpperCase()); }));
-      farms[farmName] = ids;
-      saveFarmsToLocal();
-      updateFarmUI();
-    };
-    reader.readAsBinaryString(file);
   });
 }
 
-function updateFarmUI() {
-  const chips = document.getElementById('farmChips');
-  if (chips) {
-    const count = Object.keys(farms).length;
-    chips.innerHTML = (count ? '' : '<div style="color:#aaa;font-size:.83rem;margin-bottom:6px">ยังไม่มีพันธุ์ประวัติ</div>') +
-      Object.keys(farms).map(f =>
-        `<span class="farm-chip">🏠 ${f} (${farms[f].size} รายการ) <span class="rm" onclick="removeFarm('${f}')">×</span></span>`).join('') +
-      (count ? `<div style="font-size:.75rem;color:#888;margin-top:6px">💾 บันทึกในเครื่องแล้ว — จะคงอยู่จนกว่าจะลบออก</div>` : '');
-  }
-  ['farmSelect'].forEach(id => {
-    const sel = document.getElementById(id);
-    if (sel) sel.innerHTML = '<option value="">-- เลือกฟาร์ม --</option>' +
-      Object.keys(farms).map(f => `<option value="${f}">${f}</option>`).join('');
-  });
-}
-
-function removeFarm(name) {
-  if (!confirm('ลบพันธุ์ประวัติฟาร์ม "' + name + '" ออกจากระบบ?')) return;
-  delete farms[name];
-  saveFarmsToLocal();
-  updateFarmUI();
-}
-
-function saveApiUrl() {
-  API_URL = document.getElementById('apiUrl').value.trim();
-  localStorage.setItem('pig_api_url', API_URL);
-  const s = document.getElementById('apiSaved');
-  s.style.display = 'inline';
-  setTimeout(() => s.style.display = 'none', 2000);
-}
-
-// ============================================================
-// SESSION STATE
-// ============================================================
-let currentFarm = '', currentDate = '', currentSubmitter = '', currentReportId = '';
-let currentBarn = '';          // ชื่อเล้าปัจจุบัน
-let currentPigs = [];          // หมูในเล้าปัจจุบัน (ยังไม่บันทึก)
-let savedBarns = [];           // [{barnName, pigs:[]}]
-
-function genReportId() {
-  const d = new Date();
-  return 'RPT-' + d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') + '-' + String(Math.floor(Math.random()*9000)+1000);
+async function removeFarm(fid, name) {
+  if (!confirm('ลบฟาร์ม "' + name + '"?')) return;
+  await db.ref('farms/' + fid).remove();
+  toast('✅ ลบแล้ว');
 }
 
 // ============================================================
 // START COUNTING
 // ============================================================
 function startCounting() {
-  currentFarm = document.getElementById('farmSelect').value;
+  currentFarmId = document.getElementById('farmSelect').value;
   currentDate = document.getElementById('countDate').value;
   currentSubmitter = document.getElementById('submitterName').value.trim();
   const barnName = document.getElementById('firstBarnName').value.trim();
-  if (!currentFarm) return alert('กรุณาเลือกฟาร์ม');
-  if (!currentDate) return alert('กรุณาเลือกวันที่');
-  if (!currentSubmitter) return alert('กรุณากรอกชื่อผู้ตรวจนับ');
-  if (!barnName) return alert('กรุณาระบุชื่อ/เลขเล้า');
-  currentReportId = genReportId();
+  
+  if (!currentFarmId) return toast('❌ กรุณาเลือกฟาร์ม');
+  if (!currentDate) return toast('❌ กรุณาเลือกวันที่');
+  if (!currentSubmitter) return toast('❌ กรุณากรอกชื่อผู้ตรวจนับ');
+  if (!barnName) return toast('❌ กรุณาระบุชื่อ/เลขเล้า');
+  
+  currentFarm = allFarms[currentFarmId].name;
+  
+  // Generate CNT number
+  const d = currentDate.replace(/-/g, '');
+  currentCntNumber = 'CNT-' + d + '-' + String(Math.floor(Math.random() * 9000) + 1000);
+  
   currentBarn = barnName;
   currentPigs = [];
   savedBarns = [];
+  document.getElementById('barnNote').value = '';
   updateCountUI();
   autoSaveSession();
-  switchToCount();
-}
-
-function switchToCount() {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-count').classList.add('active');
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.getAttribute('onclick') && t.getAttribute('onclick').includes("'count'")));
+  showPage('count');
 }
 
 function updateCountUI() {
   document.getElementById('countFarmLabel').textContent = '🏠 ' + currentFarm;
   document.getElementById('countDateLabel').textContent = '📅 ' + formatDate(currentDate);
-  document.getElementById('countReportLabel').textContent = '📄 ' + currentReportId;
+  document.getElementById('countCntLabel').textContent = '📄 ' + currentCntNumber;
   document.getElementById('countSubmitterLabel').textContent = '👤 ' + currentSubmitter;
   document.getElementById('barnNameLabel').textContent = currentBarn;
+  // Show/hide recount banner
+  const banner = document.getElementById('recountBanner');
+  if (banner) banner.style.display = _recountReportId ? 'flex' : 'none';
   renderCurrentPigs();
   renderSavedBarns();
 }
 
 // ============================================================
-// PIG PARSING
+// SEARCH (4-digit + full ID)
 // ============================================================
-function parsePigId(raw) {
-  raw = raw.trim().toUpperCase();
-  const m = raw.match(/^([A-Z0-9]+)-([12])-(\d+)-(\d+)$/);
-  if (!m) return null;
-  return { id: raw, sex: m[2] === '2' ? 'sow' : 'boar' };
+let _dropdownItems = [];
+let _selectedIdx = -1;
+
+function handleSearch(value) {
+  const v = value.trim().toUpperCase();
+  const dropdown = document.getElementById('searchDropdown');
+  _selectedIdx = -1;
+  
+  if (v.length < 3) { dropdown.classList.remove('show'); return; }
+  if (!currentFarmId || !allFarms[currentFarmId]) { dropdown.classList.remove('show'); return; }
+  
+  const farm = allFarms[currentFarmId];
+  
+  // Full ID
+  if (v.match(/^([A-Z0-9]+)-([12])-(\d+)-(\d+)$/)) { dropdown.classList.remove('show'); return; }
+  
+  // Ear tag search (digits only, 3-4 chars)
+  if (/^\d{3,4}$/.test(v)) {
+    let matches = [];
+    if (farm.earTagIndex && farm.earTagIndex[v]) {
+      matches = farm.earTagIndex[v];
+    } else {
+      // Partial match
+      Object.keys(farm.earTagIndex || {}).forEach(tag => {
+        if (tag.includes(v)) matches = matches.concat(farm.earTagIndex[tag]);
+      });
+    }
+    
+    _dropdownItems = matches.slice(0, 20);
+    
+    if (matches.length) {
+      dropdown.innerHTML = _dropdownItems.map((id, i) => {
+        const pig = farm.pedigree.find(p => p.id === id);
+        const sexLabel = pig.sex === 'sow' ? '♀ แม่พันธุ์' : '♂ พ่อพันธุ์';
+        const sexColor = pig.sex === 'sow' ? 'var(--sow)' : 'var(--boar)';
+        return `<div class="dropdown-item" data-idx="${i}" onclick="selectPigFromSearch('${id}')">
+          <div class="did">✓ ${id}</div>
+          <div class="dmeta" style="color:${sexColor}">${sexLabel} | เบอร์หู ${pig.earTag}</div>
+        </div>`;
+      }).join('');
+      dropdown.classList.add('show');
+    } else {
+      dropdown.innerHTML = `
+        <div class="dropdown-empty">❌ ไม่พบเบอร์หู "${v}" ในพันธุ์ประวัติ</div>
+        <div class="dropdown-add" onclick="showManualEntry('${v}')">
+          + บันทึกเบอร์หู ${v} (ไม่มีประวัติ)
+        </div>`;
+      _dropdownItems = [];
+      dropdown.classList.add('show');
+    }
+  } else {
+    dropdown.classList.remove('show');
+  }
+}
+
+function handleKeyDown(e) {
+  const dropdown = document.getElementById('searchDropdown');
+  
+  if (e.key === 'Enter') {
+    if (dropdown.classList.contains('show') && _dropdownItems.length && _selectedIdx >= 0) {
+      selectPigFromSearch(_dropdownItems[_selectedIdx]);
+    } else if (dropdown.classList.contains('show') && _dropdownItems.length) {
+      // Pick first
+      selectPigFromSearch(_dropdownItems[0]);
+    } else {
+      // Try full ID
+      const v = document.getElementById('pigSearch').value.trim().toUpperCase();
+      const m = v.match(/^([A-Z0-9]+)-([12])-(\d+)-(\d+)$/);
+      if (m) {
+        addPig({ id: v, earTag: m[4], sex: m[2] === '2' ? 'sow' : 'boar', found: hasRecord(v) });
+        document.getElementById('pigSearch').value = '';
+        dropdown.classList.remove('show');
+      } else if (v.length >= 3) {
+        showManualEntry(v);
+      }
+    }
+    e.preventDefault();
+  } else if (e.key === 'ArrowDown' && dropdown.classList.contains('show')) {
+    _selectedIdx = Math.min(_selectedIdx + 1, _dropdownItems.length - 1);
+    updateDropdownSelection();
+    e.preventDefault();
+  } else if (e.key === 'ArrowUp' && dropdown.classList.contains('show')) {
+    _selectedIdx = Math.max(_selectedIdx - 1, -1);
+    updateDropdownSelection();
+    e.preventDefault();
+  } else if (e.key === 'Escape') {
+    dropdown.classList.remove('show');
+  }
+}
+
+function updateDropdownSelection() {
+  document.querySelectorAll('#searchDropdown .dropdown-item').forEach((el, i) => {
+    el.classList.toggle('selected', i === _selectedIdx);
+  });
 }
 
 function hasRecord(id) {
-  if (!farms[currentFarm]) return false;
-  return farms[currentFarm].has(id);
+  const f = allFarms[currentFarmId];
+  return f && f.pedigree && f.pedigree.some(p => p.id === id);
 }
 
-// ============================================================
-// ADD PIG
-// ============================================================
-function addPig() {
-  const input = document.getElementById('pigInput');
-  const raw = input.value.trim();
-  if (!raw) return;
-  if (!currentFarm) { showAlert('alertBox','error','❌ กรุณาตั้งค่าการตรวจนับก่อน'); return; }
-  const parsed = parsePigId(raw);
-  if (!parsed) {
-    // แสดง dialog ให้เลือกเพศ แทนการปฏิเสธ
-    showManualEntry(raw);
-    input.value = ''; return;
+function selectPigFromSearch(id) {
+  const farm = allFarms[currentFarmId];
+  const pig = farm.pedigree.find(p => p.id === id);
+  if (pig) addPig({ ...pig, found: true });
+  document.getElementById('searchDropdown').classList.remove('show');
+  document.getElementById('pigSearch').value = '';
+  document.getElementById('pigSearch').focus();
+}
+
+function showManualEntry(input) {
+  _manualId = input;
+  document.getElementById('manualIdLabel').textContent = input;
+  document.getElementById('manualOverlay').classList.remove('hidden');
+}
+
+function confirmManualEntry(sex) {
+  const id = /^\d{3,4}$/.test(_manualId) ? 'XXXX-' + _manualId : _manualId;
+  const earTag = /^\d{3,4}$/.test(_manualId) ? _manualId : '';
+  addPig({ id, earTag, sex, found: false, needsVerification: true });
+  document.getElementById('manualOverlay').classList.add('hidden');
+  document.getElementById('searchDropdown').classList.remove('show');
+  document.getElementById('pigSearch').value = '';
+  document.getElementById('pigSearch').focus();
+}
+
+function closeManual() {
+  document.getElementById('manualOverlay').classList.add('hidden');
+}
+
+function addPig(pig) {
+  // Check duplicate across all barns
+  const all = [...currentPigs, ...savedBarns.flatMap(b => b.pigs)];
+  if (all.find(p => p.id === pig.id)) {
+    showAlert('alertBox', 'error', `⚠️ รหัส ${pig.id} ซ้ำ`);
+    return;
   }
-  const allPigs = [...currentPigs, ...savedBarns.flatMap(b => b.pigs)];
-  if (allPigs.find(p => p.id === parsed.id)) {
-    showAlert('alertBox','error',`⚠️ รหัส ${parsed.id} ซ้ำ — มีอยู่แล้ว`);
-    input.value = ''; return;
-  }
-  const record = hasRecord(parsed.id);
-  currentPigs.push({...parsed, hasRecord:record, barnName:currentBarn, piglets_m:0, piglets_f:0});
-  input.value = '';
+  currentPigs.unshift({
+    ...pig,
+    barnName: currentBarn,
+    piglets_m: 0,
+    piglets_f: 0,
+    piglets_u: 0
+  });
   renderCurrentPigs();
   autoSaveSession();
-  showAlert('alertBox','success',`✅ เพิ่ม ${parsed.sex==='sow'?'แม่พันธุ์':'พ่อพันธุ์'} ${parsed.id} ${record?'(มีประวัติ)':'(ไม่มีประวัติ)'}`);
+  showAlert('alertBox', 'success', `✅ เพิ่ม ${pig.id} ${pig.found ? '(มีประวัติ)' : '(ไม่มีประวัติ)'}`);
 }
 
-// ============================================================
-// RENDER
-// ============================================================
 function renderCurrentPigs() {
   const el = document.getElementById('pigList');
-  const cnt = document.getElementById('pigCount');
-  const barnCnt = document.getElementById('barnCountLabel');
-  cnt.textContent = currentPigs.length;
-  barnCnt.textContent = currentPigs.length + ' ตัว';
-  if (!currentPigs.length) { el.innerHTML = '<div class="empty">ยังไม่มีรายการในเล้านี้</div>'; return; }
-  el.innerHTML = currentPigs.map((p,i) => `
-    <div class="pig-item ${p.sex}">
+  document.getElementById('pigCount').textContent = currentPigs.length;
+  document.getElementById('barnCountLabel').textContent = currentPigs.length + ' ตัว';
+  
+  if (!currentPigs.length) {
+    el.innerHTML = '<div class="empty">ยังไม่มีรายการ</div>';
+    return;
+  }
+  
+  el.innerHTML = currentPigs.map((p, i) => {
+    const sexClass = p.sex === 'sow' ? 'sow' : p.sex === 'boar' ? 'boar' : 'unknown';
+    const sexBadge = p.sex === 'sow' ? '<span class="badge badge-sow">♀ แม่</span>' :
+                     p.sex === 'boar' ? '<span class="badge badge-boar">♂ พ่อ</span>' :
+                     '<span class="badge badge-unknown">ไม่ระบุ</span>';
+    const foundBadge = p.found ? '<span class="badge badge-ok">✓ มีประวัติ</span>' : '<span class="badge badge-no">✗ ไม่มีประวัติ</span>';
+    const verBadge = p.needsVerification ? '<span class="badge badge-warning">⚠️ ตรวจสอบ</span>' : '';
+    
+    return `<div class="pig-item ${sexClass}">
       <div style="flex:1">
         <div class="id">${p.id}</div>
-        <div style="font-size:.75rem;color:#888;margin-top:2px">
-          <span class="badge ${p.sex==='sow'?'badge-sow':'badge-boar'}">${p.sex==='sow'?'♀ แม่':'♂ พ่อ'}</span>
-          <span class="badge ${p.hasRecord?'badge-ok':'badge-no'}" style="margin-left:3px">${p.hasRecord?'✓ มีประวัติ':'— ไม่มีประวัติ'}</span>
-        </div>
-        ${p.sex==='sow'?`
-        <div style="margin-top:5px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-          <span style="font-size:.78rem;color:#777">🐷 ผู้:</span>
-          <input class="piglet-input" type="number" min="0" value="${p.piglets_m}" onchange="currentPigs[${i}].piglets_m=parseInt(this.value)||0;autoSaveSession()">
-          <span style="font-size:.78rem;color:#777">เมีย:</span>
-          <input class="piglet-input" type="number" min="0" value="${p.piglets_f}" onchange="currentPigs[${i}].piglets_f=parseInt(this.value)||0;autoSaveSession()">
-          ${(p.piglets_m+p.piglets_f)>0?`<span class="badge badge-piglet">รวม ${p.piglets_m+p.piglets_f}</span>`:''}
+        <div style="font-size:.75rem;margin-top:2px">${sexBadge} ${foundBadge} ${verBadge}</div>
+        ${p.sex === 'sow' ? `<div style="margin-top:5px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:.78rem">
+          🐷 ผู้:<input class="piglet-input" type="number" min="0" value="${p.piglets_m}" onchange="currentPigs[${i}].piglets_m=parseInt(this.value)||0;renderCurrentPigs();autoSaveSession()">
+          เมีย:<input class="piglet-input" type="number" min="0" value="${p.piglets_f}" onchange="currentPigs[${i}].piglets_f=parseInt(this.value)||0;renderCurrentPigs();autoSaveSession()">
+          ไม่ระบุ:<input class="piglet-input" type="number" min="0" value="${p.piglets_u||0}" onchange="currentPigs[${i}].piglets_u=parseInt(this.value)||0;renderCurrentPigs();autoSaveSession()">
+          ${(p.piglets_m+p.piglets_f+(p.piglets_u||0))>0?`<span class="badge badge-piglet">รวม ${p.piglets_m+p.piglets_f+(p.piglets_u||0)}</span>`:''}
         </div>`:''}
       </div>
       <button class="btn btn-red btn-sm" onclick="removeCurrentPig(${i})">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
-function removeCurrentPig(i) { currentPigs.splice(i,1); renderCurrentPigs(); autoSaveSession(); }
-function clearCurrentBarn() { if(confirm('ล้างรายการในเล้านี้?')) { currentPigs=[]; renderCurrentPigs(); autoSaveSession(); } }
-
-function renderSavedBarns() {
-  const sec = document.getElementById('savedBarnsSection');
-  const el = document.getElementById('savedBarnList');
-  const cnt = document.getElementById('savedBarnCount');
-  if (!savedBarns.length) { sec.style.display='none'; return; }
-  sec.style.display='block';
-  cnt.textContent = savedBarns.length;
-  el.innerHTML = savedBarns.map((b,i) => {
-    const sows = b.pigs.filter(p=>p.sex==='sow').length;
-    const boars = b.pigs.filter(p=>p.sex==='boar').length;
-    const piglets = b.pigs.reduce((s,p)=>s+p.piglets_m+p.piglets_f,0);
-    return `<div class="barn-card">
-      <div class="bc-header">
-        <div class="bc-name">🏚️ ${b.barnName}</div>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-sm" style="background:#eee" onclick="expandBarn(${i})">👁️ ดู</button>
-          <button class="btn btn-blue btn-sm" onclick="openEditBarn(${i})">✏️ แก้ไข</button>
-          <button class="btn btn-red btn-sm" onclick="deleteSavedBarn(${i})">✕</button>
-        </div>
-      </div>
-      <div class="bc-stats">
-        รวม ${b.pigs.length} ตัว | ♀ แม่ ${sows} | ♂ พ่อ ${boars}${piglets>0?' | 🐷 ลูก '+piglets:''}
-      </div>
-      ${b.note?`<div style="font-size:.78rem;color:#888;margin-top:4px">📝 ${b.note}</div>`:''}
-    </div>`;}).join('');
+function removeCurrentPig(i) {
+  currentPigs.splice(i, 1);
+  renderCurrentPigs();
+  autoSaveSession();
 }
 
-function deleteSavedBarn(i) {
-  if (!confirm('ลบเล้า ' + savedBarns[i].barnName + '?')) return;
-  savedBarns.splice(i,1); renderSavedBarns(); autoSaveSession();
-}
-
-function expandBarn(i) {
-  const b = savedBarns[i];
-  document.getElementById('detailTitle').textContent = '🏚️ เล้า ' + b.barnName;
-  document.getElementById('detailContent').innerHTML = b.pigs.map(p=>`
-    <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:.85rem">
-      <span class="badge ${p.sex==='sow'?'badge-sow':'badge-boar'}">${p.sex==='sow'?'♀':'♂'}</span>
-      <span style="flex:1;font-weight:600">${p.id}</span>
-      <span class="badge ${p.hasRecord?'badge-ok':'badge-no'}">${p.hasRecord?'✓':'—'}</span>
-      ${(p.piglets_m+p.piglets_f)>0?`<span class="badge badge-piglet">🐷${p.piglets_m+p.piglets_f}</span>`:''}
-    </div>`).join('');
-  document.getElementById('detailOverlay').classList.remove('hidden');
+function clearCurrentBarn() {
+  if (!confirm('ล้างรายการในเล้านี้?')) return;
+  currentPigs = [];
+  renderCurrentPigs();
+  autoSaveSession();
 }
 
 // ============================================================
 // BARN MANAGEMENT
 // ============================================================
 function saveBarnAndNew() {
-  if (!currentPigs.length && !confirm('เล้านี้ยังไม่มีหมู ยืนยันบันทึกเล้าว่างเปล่า?')) return;
-  const barnNote = document.getElementById('barnNote') ? document.getElementById('barnNote').value : '';
-  savedBarns.push({ barnName: currentBarn, pigs: [...currentPigs], note: barnNote });
+  if (!currentPigs.length && !confirm('เล้านี้ว่างเปล่า — บันทึกอยู่ดี?')) return;
+  savedBarns.push({ 
+    barnName: currentBarn, 
+    pigs: [...currentPigs], 
+    note: document.getElementById('barnNote').value 
+  });
   currentPigs = [];
   document.getElementById('newBarnInput').value = '';
   document.getElementById('barnOverlay').classList.remove('hidden');
@@ -895,358 +1437,90 @@ function confirmNewBarn() {
   if (!name) return alert('กรุณาระบุชื่อเล้า');
   currentBarn = name;
   document.getElementById('barnOverlay').classList.add('hidden');
-  const noteEl = document.getElementById('barnNote');
-  if (noteEl) noteEl.value = '';
+  document.getElementById('barnNote').value = '';
   updateCountUI();
   autoSaveSession();
-  showAlert('alertBox','success','✅ บันทึกเล้าเดิมแล้ว — ตอนนี้อยู่ที่เล้า ' + name);
+  showAlert('alertBox', 'success', '✅ บันทึกเล้าเดิมแล้ว — ตอนนี้อยู่เล้า ' + name);
 }
 
 function cancelNewBarn() {
-  // undo save
-  if (savedBarns.length) { const last = savedBarns.pop(); currentPigs = last.pigs; currentBarn = last.barnName; }
+  if (savedBarns.length) {
+    const last = savedBarns.pop();
+    currentPigs = last.pigs;
+    currentBarn = last.barnName;
+    document.getElementById('barnNote').value = last.note || '';
+  }
   document.getElementById('barnOverlay').classList.add('hidden');
   updateCountUI();
 }
 
-// ============================================================
-// SUMMARY
-// ============================================================
-function getAllPigs() {
-  const fromSaved = savedBarns.flatMap(b => b.pigs);
-  return [...fromSaved, ...currentPigs];
+function finishCounting() {
+  // เล้าสุดท้ายถูกบันทึกไปแล้วใน saveBarnAndNew() → ปิด overlay แล้วไปสรุปผล
+  document.getElementById('barnOverlay').classList.add('hidden');
+  autoSaveSession();
+  showPage('summary');
+  toast('✅ บันทึกเล้าสุดท้ายแล้ว → กรุณาตรวจสอบและกดส่งผล');
 }
 
-function renderSummary() {
-  const el = document.getElementById('summaryCard');
-  const btns = document.getElementById('summaryButtons');
-  const allPigs = getAllPigs();
-  if (!currentFarm || allPigs.length === 0) {
-    el.innerHTML = '<div class="empty">ยังไม่มีข้อมูล — ไปหน้าตรวจนับก่อน</div>';
-    btns.style.display='none'; return;
-  }
-  const sows = allPigs.filter(p=>p.sex==='sow');
-  const boars = allPigs.filter(p=>p.sex==='boar');
-  const totalPiglets = allPigs.reduce((s,p)=>s+p.piglets_m+p.piglets_f,0);
-  const withRecord = allPigs.filter(p=>p.hasRecord).length;
-  const allBarns = [...savedBarns, ...(currentPigs.length?[{barnName:currentBarn,pigs:currentPigs}]:[])];
-  el.innerHTML = `
-    <h2>📊 สรุปผลตรวจนับ</h2>
-    <div style="font-size:.85rem;color:#666;margin-bottom:10px">
-      📄 ${currentReportId}<br>🏠 ${currentFarm} | 📅 ${formatDate(currentDate)} | 👤 ${currentSubmitter}
-    </div>
-    <div class="stat-grid">
-      <div class="stat-box"><div class="num">${allPigs.length}</div><div class="lbl">รวมทั้งหมด</div></div>
-      <div class="stat-box sow-box"><div class="num" style="color:var(--sow)">${sows.length}</div><div class="lbl">♀ แม่พันธุ์</div></div>
-      <div class="stat-box boar-box"><div class="num" style="color:var(--boar)">${boars.length}</div><div class="lbl">♂ พ่อพันธุ์</div></div>
-      <div class="stat-box" style="border-top-color:var(--green)"><div class="num" style="color:var(--green)">${withRecord}</div><div class="lbl">มีประวัติ</div></div>
-      <div class="stat-box" style="border-top-color:var(--gray)"><div class="num" style="color:var(--gray)">${allPigs.length-withRecord}</div><div class="lbl">ไม่มีประวัติ</div></div>
-      <div class="stat-box piglet-box"><div class="num" style="color:var(--piglet)">${totalPiglets}</div><div class="lbl">🐷 ลูกรวม</div></div>
-    </div>
-    <hr>
-    <div style="font-size:.85rem;font-weight:700;color:var(--primary);margin-bottom:8px">สรุปรายเล้า (${allBarns.length} เล้า)</div>
-    ${allBarns.map(b=>{
-      const bs=b.pigs.filter(p=>p.sex==='sow').length;
-      const bb=b.pigs.filter(p=>p.sex==='boar').length;
-      const bp=b.pigs.reduce((s,p)=>s+p.piglets_m+p.piglets_f,0);
-      return `<div style="display:flex;justify-content:space-between;font-size:.83rem;padding:5px 0;border-bottom:1px solid #f0f0f0">
-        <span>🏚️ <strong>${b.barnName}</strong></span>
-        <span>รวม ${b.pigs.length} | ♀${bs} ♂${bb}${bp>0?' 🐷'+bp:''}</span>
-      </div>`;}).join('')}`;
-  btns.style.display='block';
-}
-
-function buildReportObj() {
-  const allBarns = [...savedBarns, ...(currentPigs.length?[{barnName:currentBarn,pigs:currentPigs}]:[])];
-  const allPigs = allBarns.flatMap(b=>b.pigs);
-  const sows=allPigs.filter(p=>p.sex==='sow');
-  const boars=allPigs.filter(p=>p.sex==='boar');
-  return {
-    id: currentReportId, farm: currentFarm, date: currentDate,
-    submittedBy: currentSubmitter, submittedAt: new Date().toISOString(),
-    totalPigs: allPigs.length, totalSows: sows.length, totalBoars: boars.length,
-    totalPiglets: allPigs.reduce((s,p)=>s+p.piglets_m+p.piglets_f,0),
-    withRecord: allPigs.filter(p=>p.hasRecord).length,
-    noRecord: allPigs.filter(p=>!p.hasRecord).length,
-    barns: allBarns
-  };
-}
-
-// ============================================================
-// SUBMIT
-// ============================================================
-async function submitReport() {
-  const existing = getLocalReports().find(r => r.id === currentReportId && r.synced);
-  if (existing) { showAlert('summaryAlert','error','⚠️ รายงาน '+currentReportId+' ถูกส่งแล้ว'); return; }
-  const report = buildReportObj();
-  saveToLocal(report);
-  clearAutoSave();
-  showAlert('summaryAlert','success','💾 บันทึกในเครื่องแล้ว');
-  if (!API_URL) { showAlert('summaryAlert','error','⚠️ ยังไม่ได้ตั้งค่า API URL'); return; }
-  showAlert('summaryAlert','success','⏳ กำลังส่งข้อมูล...');
-  try {
-    const res = await fetchWithProxy(API_URL, {method:'POST', body:JSON.stringify(report)});
-    const data = await res.json();
-    if (data.status==='ok'||data.status==='duplicate') {
-      markSynced(report.id);
-      showAlert('summaryAlert','success','✅ ส่งสำเร็จ! ขึ้น Google Sheets แล้ว');
-    } else throw new Error(data.message);
-  } catch(e) {
-    showAlert('summaryAlert','error','⚠️ ส่งไม่สำเร็จ — บันทึกในเครื่องแล้ว');
-  }
-}
-
-// ============================================================
-// FETCH
-// ============================================================
-async function fetchWithProxy(url, opts={}) {
-  const isPost = opts.method==='POST';
-  if (isPost && opts.body) {
-    const encoded = encodeURIComponent(opts.body);
-    return fetch(url+(url.includes('?')?'&':'?')+'data='+encoded+'&_t='+Date.now(),{redirect:'follow'});
-  }
-  return fetch(url+(url.includes('?')?'&':'?')+'_t='+Date.now(),{redirect:'follow'});
-}
-
-// ============================================================
-// LOCAL STORAGE
-// ============================================================
-function saveToLocal(report) {
-  const key='pig_reports';
-  const existing=JSON.parse(localStorage.getItem(key)||'[]');
-  existing.unshift({...report,synced:false});
-  localStorage.setItem(key,JSON.stringify(existing.slice(0,200)));
-}
-function markSynced(id) {
-  const key='pig_reports';
-  const data=JSON.parse(localStorage.getItem(key)||'[]');
-  const idx=data.findIndex(r=>r.id===id);
-  if(idx>=0){data[idx].synced=true;localStorage.setItem(key,JSON.stringify(data));}
-}
-function getLocalReports(){ return JSON.parse(localStorage.getItem('pig_reports')||'[]'); }
-function loadLocalHistory(){ renderHistoryWithFilter(getLocalReports(),true); checkPending(); }
-
-function checkPending() {
-  const pending=getLocalReports().filter(r=>!r.synced);
-  const bar=document.getElementById('syncBar');
-  document.getElementById('pendingCount').textContent=pending.length;
-  bar.classList.toggle('hidden',pending.length===0);
-}
-
-async function syncPending() {
-  if(!API_URL) return alert('กรุณาตั้งค่า API URL ก่อน');
-  const reports=getLocalReports().filter(r=>!r.synced); let ok=0;
-  for(const r of reports){
-    try{const res=await fetchWithProxy(API_URL,{method:'POST',body:JSON.stringify(r)});
-      const data=await res.json();if(data.status==='ok'||data.status==='duplicate'){markSynced(r.id);ok++;}}catch(e){}
-  }
-  alert(`ซิงค์สำเร็จ ${ok}/${reports.length} รายการ`); checkPending(); loadLocalHistory();
-}
-
-async function loadHistory() {
-  if(!API_URL){alert('กรุณาตั้งค่า API URL');return;}
-  document.getElementById('historyList').innerHTML='<div class="empty">⏳ กำลังโหลด...</div>';
-  try{
-    const res=await fetchWithProxy(API_URL);
-    const data=await res.json();
-    if(data.status==='ok'){renderHistory(data.data.map(r=>({...r,synced:true})).reverse(),false);}
-    else throw new Error(data.message);
-  }catch(e){document.getElementById('historyList').innerHTML=`<div class="empty">❌ โหลดไม่สำเร็จ<br><small>${e.message}</small></div>`;}
-}
-
-function renderHistory(reports, isLocal) {
-  window._historyData=reports; window._historyIsLocal=isLocal;
-  const el=document.getElementById('historyList');
-  if(!reports.length){el.innerHTML=`<div class="empty">${isLocal?'ยังไม่มีรายงานในเครื่อง':'ไม่มีรายงานใน Google Sheets'}</div>`;return;}
-  const isAdmin = currentUser && currentUser.role==='admin';
-  const deleteBar = isAdmin ? `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px;background:#fff3cd;border-radius:8px;font-size:.85rem">
-      <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this.checked)" style="width:16px;height:16px">
-      <label for="selectAll" style="cursor:pointer;font-weight:600">เลือกทั้งหมด</label>
-      <button class="btn btn-red btn-sm" style="margin-left:auto" onclick="deleteSelected(${isLocal})">🗑️ ลบที่เลือก</button>
-    </div>` : '';
-  el.innerHTML = deleteBar + reports.map((r,i)=>`
-    <div class="report-card" style="display:flex;align-items:flex-start;gap:10px">
-      ${isAdmin?`<input type="checkbox" class="report-chk" data-i="${i}" style="width:16px;height:16px;margin-top:4px;flex-shrink:0">`:''}
-      <div style="flex:1;cursor:pointer" onclick="showDetail(${i})">
-        <div class="rc-id">📄 ${r.id||r['เลขที่เอกสาร']||'-'}</div>
-        <div class="rc-farm">🏠 ${r.farm||'-'}</div>
-        <div class="rc-date">📅 ${formatDate(r.date)}</div>
-        <div class="rc-meta">รวม ${r.totalPigs||0} | ♀${r.totalSows||0} ♂${r.totalBoars||0}${(r.totalPiglets||0)>0?' 🐷'+r.totalPiglets:''} | ✓${r.withRecord||0} ✗${r.noRecord||0}</div>
-        <div class="rc-sub">👤 ${r.submittedBy||'-'} &nbsp;
-          ${isLocal&&!r.synced?'<span class="badge" style="background:#f39c12">📵 รอซิงค์</span>':'<span class="badge badge-ok">☁️ ซิงค์แล้ว</span>'}
+function renderSavedBarns() {
+  const sec = document.getElementById('savedBarnsSection');
+  const el = document.getElementById('savedBarnList');
+  const cnt = document.getElementById('savedBarnCount');
+  
+  if (!savedBarns.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  cnt.textContent = savedBarns.length;
+  
+  el.innerHTML = savedBarns.map((b, i) => {
+    const sows = b.pigs.filter(p => p.sex === 'sow').length;
+    const boars = b.pigs.filter(p => p.sex === 'boar').length;
+    const piglets = b.pigs.reduce((s, p) => s + p.piglets_m + p.piglets_f, 0);
+    return `<div class="barn-card">
+      <div class="bc-header">
+        <div class="bc-name">🏚️ ${b.barnName}</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" style="background:#eee" onclick="viewSavedBarn(${i})">👁️</button>
+          <button class="btn btn-blue btn-sm" onclick="openEditBarn(${i})">✏️</button>
+          <button class="btn btn-red btn-sm" onclick="deleteSavedBarn(${i})">✕</button>
         </div>
       </div>
-    </div>`).join('');
-}
-
-function toggleSelectAll(c){ document.querySelectorAll('.report-chk').forEach(x=>x.checked=c); }
-
-async function deleteSelected(isLocal) {
-  const checked=[...document.querySelectorAll('.report-chk:checked')].map(c=>parseInt(c.dataset.i));
-  if(!checked.length) return alert('กรุณาเลือกรายการ');
-  if(!confirm('ลบ '+checked.length+' รายการ?')) return;
-  const toDelete=checked.map(i=>window._historyData[i]);
-  if(isLocal){
-    let local=getLocalReports();
-    toDelete.forEach(r=>{local=local.filter(x=>x.id!==r.id);});
-    localStorage.setItem('pig_reports',JSON.stringify(local));
-    loadLocalHistory();
-  } else {
-    if(!API_URL) return alert('ไม่มี API URL');
-    let ok=0;
-    for(const r of toDelete){
-      const id=r.id||r['เลขที่เอกสาร'];
-      try{const res=await fetchWithProxy(API_URL+'?deleteId='+encodeURIComponent(id));
-        const data=await res.json();if(data.status==='ok')ok++;}catch(e){}
-    }
-    alert('ลบสำเร็จ '+ok+'/'+toDelete.length); loadHistory();
-  }
-}
-
-function showDetail(i) {
-  const r=window._historyData[i];
-  document.getElementById('detailTitle').textContent=`${r.farm} — ${formatDate(r.date)}`;
-  const barns=r.barns||[];
-  const allPigs=barns.flatMap(b=>b.pigs||[]);
-  document.getElementById('detailContent').innerHTML=`
-    <div style="font-size:.85rem;color:#666;margin-bottom:10px">📄 ${r.id||'-'} | 👤 ${r.submittedBy||'-'}</div>
-    <div class="stat-grid" style="margin-bottom:12px">
-      <div class="stat-box"><div class="num">${r.totalPigs||0}</div><div class="lbl">รวม</div></div>
-      <div class="stat-box sow-box"><div class="num" style="color:var(--sow)">${r.totalSows||0}</div><div class="lbl">♀</div></div>
-      <div class="stat-box boar-box"><div class="num" style="color:var(--boar)">${r.totalBoars||0}</div><div class="lbl">♂</div></div>
-    </div>
-    ${barns.map(b=>`
-      <div style="margin-bottom:8px">
-        <div style="font-weight:700;color:var(--primary);font-size:.88rem;margin-bottom:4px">🏚️ ${b.barnName}</div>
-        ${(b.pigs||[]).map(p=>`
-          <div style="display:flex;align-items:center;gap:5px;padding:4px 0;border-bottom:1px solid #f5f5f5;font-size:.82rem">
-            <span class="badge ${p.sex==='sow'?'badge-sow':'badge-boar'}">${p.sex==='sow'?'♀':'♂'}</span>
-            <span style="flex:1;font-weight:600">${p.id}</span>
-            <span class="badge ${p.hasRecord?'badge-ok':'badge-no'}">${p.hasRecord?'✓':'—'}</span>
-            ${(p.piglets_m+p.piglets_f)>0?`<span class="badge badge-piglet">🐷${p.piglets_m+p.piglets_f}</span>`:''}
-          </div>`).join('')}
-      </div>`).join('')}
-    <div style="margin-top:12px">
-      <button class="btn btn-blue btn-sm" onclick="exportDetailExcel(${i})">📥 Export Excel</button>
+      <div class="bc-stats">
+        รวม ${b.pigs.length} | ♀${sows} ♂${boars}${piglets>0?' 🐷'+piglets:''}
+      </div>
+      ${b.note?`<div style="font-size:.78rem;color:#888;margin-top:4px">📝 ${b.note}</div>`:''}
     </div>`;
+  }).join('');
+}
+
+function deleteSavedBarn(i) {
+  if (!confirm('ลบเล้า ' + savedBarns[i].barnName + '?')) return;
+  savedBarns.splice(i, 1);
+  renderSavedBarns();
+  autoSaveSession();
+}
+
+function viewSavedBarn(i) {
+  const b = savedBarns[i];
+  document.getElementById('detailTitle').textContent = '🏚️ ' + b.barnName;
+  document.getElementById('detailContent').innerHTML = b.pigs.map(p => `
+    <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:.85rem">
+      <span class="badge ${p.sex==='sow'?'badge-sow':p.sex==='boar'?'badge-boar':'badge-unknown'}">${p.sex==='sow'?'♀':p.sex==='boar'?'♂':'?'}</span>
+      <span style="flex:1;font-weight:600">${p.id}</span>
+      <span class="badge ${p.found?'badge-ok':'badge-no'}">${p.found?'✓':'✗'}</span>
+      ${(p.piglets_m+p.piglets_f+(p.piglets_u||0))>0?`<span class="badge badge-piglet">🐷${p.piglets_m+p.piglets_f+(p.piglets_u||0)}</span>`:''}
+    </div>`).join('');
   document.getElementById('detailOverlay').classList.remove('hidden');
 }
 
-function closeDetail(e) { if(!e||e.target===document.getElementById('detailOverlay')) document.getElementById('detailOverlay').classList.add('hidden'); }
-
 // ============================================================
-// EXPORT EXCEL
+// EDIT BARN
 // ============================================================
-function exportExcel(){ exportReportToExcel(buildReportObj()); }
-function exportDetailExcel(i){ exportReportToExcel(window._historyData[i]); }
-
-function exportReportToExcel(r) {
-  const wb=XLSX.utils.book_new();
-  const barns=r.barns||[];
-  const allPigs=barns.flatMap(b=>(b.pigs||[]).map(p=>({...p,barnName:b.barnName})));
-
-  // Sheet 1: สรุป
-  const sum=[
-    ['Piggy Check-in — สรุปผลตรวจนับ'],
-    ['เลขที่เอกสาร',r.id],['ฟาร์ม',r.farm],['วันที่',formatDate(r.date)],['ผู้ตรวจนับ',r.submittedBy],[],
-    ['รายการ','จำนวน'],['รวมทั้งหมด',r.totalPigs],['แม่พันธุ์',r.totalSows],['พ่อพันธุ์',r.totalBoars],
-    ['ลูกหมูรวม',r.totalPiglets||0],['มีประวัติ',r.withRecord],['ไม่มีประวัติ',r.noRecord],[]
-  ];
-  barns.forEach(b=>{
-    const bs=b.pigs.filter(p=>p.sex==='sow').length;
-    const bb=b.pigs.filter(p=>p.sex==='boar').length;
-    sum.push(['เล้า '+b.barnName,'รวม '+b.pigs.length+' ตัว (♀'+bs+' ♂'+bb+')']);
-  });
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sum),'สรุปผล');
-
-  // Sheet 2: รายละเอียดรายตัว
-  const det=[['เลขที่เอกสาร','ฟาร์ม','วันที่','ผู้ตรวจนับ','เล้า','รหัสหมู','เพศ','มีประวัติ','ลูกผู้','ลูกเมีย','ลูกรวม']];
-  allPigs.forEach(p=>det.push([r.id,r.farm,r.date,r.submittedBy,p.barnName,p.id,p.sex==='sow'?'แม่พันธุ์':'พ่อพันธุ์',p.hasRecord?'มีประวัติ':'ไม่มีประวัติ',p.piglets_m||0,p.piglets_f||0,(p.piglets_m||0)+(p.piglets_f||0)]));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(det),'รายละเอียดรายตัว');
-
-  // Sheet 3: แม่พันธุ์
-  const sowData=[['เล้า','รหัส','มีประวัติ','ลูกผู้','ลูกเมีย','ลูกรวม']];
-  allPigs.filter(p=>p.sex==='sow').forEach(p=>sowData.push([p.barnName,p.id,p.hasRecord?'มีประวัติ':'ไม่มีประวัติ',p.piglets_m||0,p.piglets_f||0,(p.piglets_m||0)+(p.piglets_f||0)]));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sowData),'แม่พันธุ์');
-
-  // Sheet 4: พ่อพันธุ์
-  const boarData=[['เล้า','รหัส','มีประวัติ']];
-  allPigs.filter(p=>p.sex==='boar').forEach(p=>boarData.push([p.barnName,p.id,p.hasRecord?'มีประวัติ':'ไม่มีประวัติ']));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(boarData),'พ่อพันธุ์');
-
-  XLSX.writeFile(wb,`${r.farm}_${r.date}_${r.id}.xlsx`);
-}
-
-// ============================================================
-// SEARCH BREEDING RECORD
-// ============================================================
-function searchBreedingRecord(query) {
-  const el = document.getElementById('searchResults');
-  query = query.trim().toUpperCase();
-  if (query.length < 2) { el.style.display='none'; return; }
-
-  if (!farms[currentFarm] || farms[currentFarm].size === 0) {
-    el.style.display='block';
-    el.innerHTML='<div style="padding:10px;color:#aaa;font-size:.83rem;text-align:center">ยังไม่มีพันธุ์ประวัติของฟาร์มนี้</div>';
-    return;
-  }
-
-  // ค้นหา ID ที่มี query อยู่ในนั้น
-  const matches = [...farms[currentFarm]].filter(id => id.includes(query));
-
-  if (!matches.length) {
-    el.style.display='block';
-    el.innerHTML=`<div style="padding:10px;font-size:.83rem">
-      <div style="color:#aaa;margin-bottom:8px;text-align:center">ไม่พบ "${query}" ในพันธุ์ประวัติ</div>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-sm" style="background:var(--sow);color:#fff;flex:1" onclick="showManualEntry('${query}')">♀ บันทึกเป็นแม่พันธุ์</button>
-        <button class="btn btn-sm" style="background:var(--boar);color:#fff;flex:1" onclick="showManualEntry('${query}','boar')">♂ บันทึกเป็นพ่อพันธุ์</button>
-      </div>
-    </div>`;
-    return;
-  }
-
-  el.style.display='block';
-  el.innerHTML = matches.slice(0,30).map(id => {
-    const parsed = parsePigId(id);
-    const sex = parsed ? (parsed.sex==='sow'?'♀ แม่':'♂ พ่อ') : '?';
-    const sexColor = parsed ? (parsed.sex==='sow'?'var(--sow)':'var(--boar)') : '#aaa';
-    // highlight matching part
-    const highlighted = id.replace(query, `<strong style="color:var(--primary)">${query}</strong>`);
-    return `<div onclick="selectBreedingRecord('${id}')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;font-size:.88rem;transition:background .15s" onmouseover="this.style.background='#fdf6ee'" onmouseout="this.style.background='#fff'">
-      <span>${highlighted}</span>
-      <span style="color:${sexColor};font-weight:700;font-size:.78rem">${sex}</span>
-    </div>`;
-  }).join('') + (matches.length > 30 ? `<div style="padding:8px;text-align:center;color:#aaa;font-size:.78rem">แสดง 30 จาก ${matches.length} รายการ — พิมพ์เพิ่มเพื่อกรองให้แม่นขึ้น</div>` : '');
-}
-
-function selectBreedingRecord(id) {
-  document.getElementById('pigInput').value = id;
-  document.getElementById('searchInput').value = '';
-  document.getElementById('searchResults').style.display = 'none';
-  addPig();
-  document.getElementById('pigInput').focus();
-}
-
-function clearSearch() {
-  document.getElementById('searchInput').value = '';
-  document.getElementById('searchResults').style.display = 'none';
-}
-
-// ============================================================
-// EDIT SAVED BARN
-// ============================================================
-let _editBarnIdx = -1;
-let _editBarnPigs = [];
-
 function openEditBarn(i) {
   _editBarnIdx = i;
-  _editBarnPigs = JSON.parse(JSON.stringify(savedBarns[i].pigs)); // deep copy
+  _editBarnPigs = JSON.parse(JSON.stringify(savedBarns[i].pigs));
   document.getElementById('editBarnTitle').textContent = '✏️ แก้ไขเล้า ' + savedBarns[i].barnName;
-  document.getElementById('editPigInput').value = '';
-  document.getElementById('editSearchInput').value = '';
-  document.getElementById('editSearchResults').style.display = 'none';
+  document.getElementById('editPigSearch').value = '';
+  document.getElementById('editDropdown').classList.remove('show');
   document.getElementById('editBarnNote').value = savedBarns[i].note || '';
   renderEditBarnPigs();
   document.getElementById('editBarnOverlay').classList.remove('hidden');
@@ -1254,50 +1528,75 @@ function openEditBarn(i) {
 
 function closeEditBarn() {
   document.getElementById('editBarnOverlay').classList.add('hidden');
-  _editBarnIdx = -1;
-  _editBarnPigs = [];
 }
 
 function renderEditBarnPigs() {
   const el = document.getElementById('editBarnPigList');
-  if (!_editBarnPigs.length) { el.innerHTML='<div class="empty">ยังไม่มีรายการ</div>'; return; }
-  el.innerHTML = _editBarnPigs.map((p,i) => `
-    <div class="pig-item ${p.sex}" style="margin-bottom:5px">
+  if (!_editBarnPigs.length) { el.innerHTML = '<div class="empty">ยังไม่มีรายการ</div>'; return; }
+  el.innerHTML = _editBarnPigs.map((p, i) => `
+    <div class="pig-item ${p.sex==='sow'?'sow':p.sex==='boar'?'boar':'unknown'}" style="margin-bottom:5px">
       <div style="flex:1">
         <div class="id" style="font-size:.85rem">${p.id}</div>
         <div style="font-size:.72rem;margin-top:2px">
-          <span class="badge ${p.sex==='sow'?'badge-sow':'badge-boar'}">${p.sex==='sow'?'♀ แม่':'♂ พ่อ'}</span>
-          <span class="badge ${p.hasRecord?'badge-ok':'badge-no'}" style="margin-left:3px">${p.hasRecord?'✓ มีประวัติ':'— ไม่มีประวัติ'}</span>
+          <span class="badge ${p.sex==='sow'?'badge-sow':p.sex==='boar'?'badge-boar':'badge-unknown'}">${p.sex==='sow'?'♀':p.sex==='boar'?'♂':'?'}</span>
+          <span class="badge ${p.found?'badge-ok':'badge-no'}">${p.found?'✓':'✗'}</span>
         </div>
-        ${p.sex==='sow'?`<div style="margin-top:4px;display:flex;align-items:center;gap:5px;font-size:.78rem">
-          🐷 ผู้:<input class="piglet-input" type="number" min="0" value="${p.piglets_m||0}" onchange="_editBarnPigs[${i}].piglets_m=parseInt(this.value)||0">
-          เมีย:<input class="piglet-input" type="number" min="0" value="${p.piglets_f||0}" onchange="_editBarnPigs[${i}].piglets_f=parseInt(this.value)||0">
-        </div>`:''}
       </div>
       <button class="btn btn-red btn-sm" onclick="_editBarnPigs.splice(${i},1);renderEditBarnPigs()">✕</button>
     </div>`).join('');
 }
 
-function addPigToEditBarn() {
-  const raw = document.getElementById('editPigInput').value.trim().toUpperCase();
-  if (!raw) return;
-  const parsed = parsePigId(raw);
-  if (!parsed) { alert('รหัสไม่ถูกรูปแบบ'); return; }
-  if (_editBarnPigs.find(p=>p.id===parsed.id)) { alert('รหัสซ้ำ'); return; }
-  _editBarnPigs.push({...parsed, hasRecord: hasRecord(parsed.id), barnName: savedBarns[_editBarnIdx].barnName, piglets_m:0, piglets_f:0});
-  document.getElementById('editPigInput').value = '';
-  renderEditBarnPigs();
+function handleEditSearch(value) {
+  const v = value.trim().toUpperCase();
+  const dropdown = document.getElementById('editDropdown');
+  if (v.length < 3) { dropdown.classList.remove('show'); return; }
+  if (!allFarms[currentFarmId]) return;
+  const farm = allFarms[currentFarmId];
+  
+  if (v.match(/^([A-Z0-9]+)-([12])-(\d+)-(\d+)$/)) { dropdown.classList.remove('show'); return; }
+  
+  if (/^\d{3,4}$/.test(v)) {
+    const matches = (farm.earTagIndex[v] || []).slice(0, 15);
+    if (matches.length) {
+      dropdown.innerHTML = matches.map(id => {
+        const pig = farm.pedigree.find(p => p.id === id);
+        return `<div class="dropdown-item" onclick="addToEditBarn('${id}')">
+          <div class="did">${id}</div>
+          <div class="dmeta">${pig.sex==='sow'?'♀ แม่':'♂ พ่อ'}</div>
+        </div>`;
+      }).join('');
+      dropdown.classList.add('show');
+    } else {
+      dropdown.innerHTML = '<div class="dropdown-empty">ไม่พบ</div>';
+      dropdown.classList.add('show');
+    }
+  }
 }
 
-function searchForEdit(query) {
-  const el = document.getElementById('editSearchResults');
-  query = query.trim().toUpperCase();
-  if (query.length < 2) { el.style.display='none'; return; }
-  if (!farms[currentFarm]) { el.innerHTML='<div style="padding:8px;font-size:.82rem;color:#aaa;text-align:center">ไม่มีพันธุ์ประวัติ</div>'; el.style.display='block'; return; }
-  const matches = [...farms[currentFarm]].filter(id=>id.includes(query)).slice(0,20);
-  if (!matches.length) { el.innerHTML='<div style="padding:8px;font-size:.82rem;color:#aaa;text-align:center">ไม่พบ</div>'; el.style.display='block'; return; }
-  el.style.display='block';
-  el.innerHTML = matches.map(id=>`<div onclick="document.getElementById('editPigInput').value='${id}';document.getElementById('editSearchResults').style.display='none';document.getElementById('editSearchInput').value=''" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:.85rem" onmouseover="this.style.background='#fdf6ee'" onmouseout="this.style.background='#fff'">${id}</div>`).join('');
+function handleEditKeyDown(e) {
+  if (e.key === 'Enter') {
+    const v = document.getElementById('editPigSearch').value.trim().toUpperCase();
+    const m = v.match(/^([A-Z0-9]+)-([12])-(\d+)-(\d+)$/);
+    if (m) addToEditBarn(v);
+    e.preventDefault();
+  }
+}
+
+function addToEditBarn(id) {
+  if (_editBarnPigs.find(p => p.id === id)) { toast('รหัสซ้ำ'); return; }
+  const farm = allFarms[currentFarmId];
+  const pig = farm.pedigree.find(p => p.id === id);
+  if (pig) {
+    _editBarnPigs.unshift({ ...pig, found: true, barnName: savedBarns[_editBarnIdx].barnName, piglets_m:0, piglets_f:0, piglets_u:0 });
+  } else {
+    const m = id.match(/^([A-Z0-9]+)-([12])-(\d+)-(\d+)$/);
+    if (m) {
+      _editBarnPigs.unshift({ id, earTag: m[4], sex: m[2]==='2'?'sow':'boar', found: false, barnName: savedBarns[_editBarnIdx].barnName, piglets_m:0, piglets_f:0, piglets_u:0 });
+    }
+  }
+  document.getElementById('editPigSearch').value = '';
+  document.getElementById('editDropdown').classList.remove('show');
+  renderEditBarnPigs();
 }
 
 function saveEditBarn() {
@@ -1306,284 +1605,1011 @@ function saveEditBarn() {
   closeEditBarn();
   renderSavedBarns();
   autoSaveSession();
-  showAlert('alertBox','success','✅ บันทึกการแก้ไขเล้าแล้ว');
+  toast('✅ บันทึกแก้ไขแล้ว');
 }
 
 // ============================================================
-// MANUAL ENTRY (ไม่มีประวัติ)
+// SUMMARY
 // ============================================================
-let _manualId = '';
-let _manualSex = null;
-
-function showManualEntry(id, autoSex=null) {
-  _manualId = id;
-  document.getElementById('manualIdLabel').textContent = id;
-  if (autoSex) {
-    confirmManualEntry(autoSex);
-    return;
-  }
-  document.getElementById('manualOverlay').classList.remove('hidden');
+function getAllPigs() {
+  return [...savedBarns.flatMap(b => b.pigs), ...currentPigs];
 }
 
-function confirmManualEntry(sex) {
-  closeManual();
-  const allPigs = [...currentPigs, ...savedBarns.flatMap(b=>b.pigs)];
-  if (allPigs.find(p=>p.id===_manualId)) {
-    showAlert('alertBox','error','⚠️ รหัส '+_manualId+' ซ้ำ');
+function renderSummary() {
+  const el = document.getElementById('summaryCard');
+  const btns = document.getElementById('summaryButtons');
+  const all = getAllPigs();
+  
+  if (!currentFarm || !all.length) {
+    el.innerHTML = '<div class="empty">ยังไม่มีข้อมูล — ไปหน้าตรวจนับก่อน</div>';
+    btns.style.display = 'none';
     return;
   }
-  currentPigs.push({ id: _manualId, sex, hasRecord: false, barnName: currentBarn, piglets_m:0, piglets_f:0 });
-  renderCurrentPigs();
+  
+  const sows = all.filter(p => p.sex === 'sow').length;
+  const boars = all.filter(p => p.sex === 'boar').length;
+  const unknown = all.filter(p => p.sex === 'unknown').length;
+  const withRecord = all.filter(p => p.found).length;
+  const noRecord = all.filter(p => !p.found).length;
+  const totalPiglets = all.reduce((s, p) => s + p.piglets_m + p.piglets_f, 0);
+  const allBarns = [...savedBarns, ...(currentPigs.length ? [{barnName: currentBarn, pigs: currentPigs, note: document.getElementById('barnNote').value}] : [])];
+  
+  el.innerHTML = `
+    <h2>📊 สรุปผลตรวจนับ</h2>
+    <div style="font-size:.85rem;color:#666;margin-bottom:10px">
+      📄 ${currentCntNumber}<br>🏠 ${currentFarm} | 📅 ${formatDate(currentDate)} | 👤 ${currentSubmitter}
+    </div>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="num">${all.length}</div><div class="lbl">รวม</div></div>
+      <div class="stat-box sow-box"><div class="num" style="color:var(--sow)">${sows}</div><div class="lbl">♀ แม่</div></div>
+      <div class="stat-box boar-box"><div class="num" style="color:var(--boar)">${boars}</div><div class="lbl">♂ พ่อ</div></div>
+      <div class="stat-box" style="border-top-color:var(--green)"><div class="num" style="color:var(--green)">${withRecord}</div><div class="lbl">มีประวัติ</div></div>
+      <div class="stat-box" style="border-top-color:var(--red)"><div class="num" style="color:var(--red)">${noRecord}</div><div class="lbl">ไม่มีประวัติ</div></div>
+      <div class="stat-box piglet-box"><div class="num" style="color:var(--piglet)">${totalPiglets}</div><div class="lbl">🐷 ลูก</div></div>
+    </div>
+    <hr>
+    <div style="font-size:.85rem;font-weight:700;color:var(--primary);margin-bottom:8px">รายเล้า (${allBarns.length} เล้า)</div>
+    ${allBarns.map(b => {
+      const bs = b.pigs.filter(p=>p.sex==='sow').length;
+      const bb = b.pigs.filter(p=>p.sex==='boar').length;
+      const bp = b.pigs.reduce((s,p)=>s+p.piglets_m+p.piglets_f+(p.piglets_u||0),0);
+      return `<div style="font-size:.83rem;padding:6px 0;border-bottom:1px solid #f0f0f0">
+        <div><strong>🏚️ ${b.barnName}</strong> — รวม ${b.pigs.length} | ♀${bs} ♂${bb}${bp>0?' 🐷'+bp:''}</div>
+        ${b.note?`<div style="color:#888;font-size:.78rem;margin-top:2px">📝 ${b.note}</div>`:''}
+      </div>`;
+    }).join('')}`;
+  btns.style.display = 'block';
+  // Update submit button text based on mode
+  const submitBtn = document.getElementById('submitBtn');
+  if (submitBtn) submitBtn.innerHTML = _recountReportId ? '💾 บันทึกทับ (ใช้เลขเดิม)' : '📤 ส่งผลตรวจนับ';
+}
+
+// ============================================================
+// RECOUNT (แก้ไขรายงานเดิม)
+// ============================================================
+function recountReport(i) {
+  const r = _historyFiltered[i];
+  if (!confirm(`กลับไปแก้ไขรายงาน ${r.countingNumber}?\n\nระบบจะโหลดข้อมูลเดิมให้แก้ไข แล้วกด "บันทึกทับ" เพื่อบันทึกใช้เลขเอกสารเดิม`)) return;
+  
+  // ตรวจสอบฟาร์มยังอยู่ในระบบ
+  if (!allFarms[r.farmId]) {
+    return toast('❌ ฟาร์ม "' + r.farmName + '" ไม่อยู่ในระบบแล้ว — ไม่สามารถแก้ไขได้');
+  }
+  
+  // โหลดข้อมูลรายงานกลับมา
+  currentFarmId = r.farmId;
+  currentFarm = r.farmName;
+  currentDate = r.date;
+  currentSubmitter = r.submittedByName || r.submittedByEmail;
+  currentCntNumber = r.countingNumber;
+  _recountReportId = r.id;
+  
+  // โหลดเล้า (normalize ก่อน)
+  const barns = toArray(r.barns).map(b => ({
+    ...b,
+    pigs: toArray(b.pigs).map(p => ({
+      ...p,
+      piglets_m: p.piglets_m || 0,
+      piglets_f: p.piglets_f || 0,
+      piglets_u: p.piglets_u || 0
+    }))
+  }));
+  
+  if (barns.length > 0) {
+    // เล้าสุดท้ายเอามาเป็นเล้าปัจจุบัน, เล้าอื่นเป็น savedBarns
+    const lastBarn = barns[barns.length - 1];
+    savedBarns = barns.slice(0, -1);
+    currentBarn = lastBarn.barnName;
+    currentPigs = lastBarn.pigs;
+    
+    // ตั้ง barn note
+    setTimeout(() => {
+      const noteEl = document.getElementById('barnNote');
+      if (noteEl) noteEl.value = lastBarn.note || '';
+    }, 100);
+  } else {
+    savedBarns = [];
+    currentBarn = 'F1';
+    currentPigs = [];
+  }
+  
+  closeDetail();
+  updateCountUI();
   autoSaveSession();
-  document.getElementById('searchInput').value='';
-  document.getElementById('searchResults').style.display='none';
-  showAlert('alertBox','success','✅ เพิ่ม '+_manualId+' ('+( sex==='sow'?'แม่พันธุ์':'พ่อพันธุ์')+') — ไม่มีประวัติ');
+  showPage('count');
+  toast('🔄 โหลดรายงาน ' + r.countingNumber + ' เพื่อแก้ไข');
 }
 
-function closeManual() {
-  document.getElementById('manualOverlay').classList.add('hidden');
+function cancelRecount() {
+  if (!confirm('ยกเลิกการแก้ไข? ข้อมูลที่แก้จะหาย')) return;
+  _recountReportId = null;
+  currentFarmId = ''; currentFarm = ''; currentCntNumber = '';
+  currentPigs = []; savedBarns = [];
+  clearDraft();
+  showPage('history');
+  toast('ยกเลิกการแก้ไขแล้ว');
 }
 
 // ============================================================
-// AUTO-SAVE SESSION
+// SUBMIT REPORT
 // ============================================================
-const SESSION_KEY='pig_session_draft';
-
-function autoSaveSession() {
-  if(!currentFarm||!currentReportId) return;
-  localStorage.setItem(SESSION_KEY,JSON.stringify({currentFarm,currentDate,currentSubmitter,currentReportId,currentBarn,currentPigs,savedBarns}));
+async function submitReport() {
+  const all = getAllPigs();
+  if (!all.length) return showAlert('summaryAlert', 'error', '❌ ยังไม่มีรายการ');
+  
+  showAlert('summaryAlert', 'success', '⏳ กำลังส่ง...');
+  
+  const allBarns = [...savedBarns, ...(currentPigs.length ? [{barnName: currentBarn, pigs: currentPigs, note: document.getElementById('barnNote').value}] : [])];
+  
+  try {
+    const report = {
+      countingNumber: currentCntNumber,
+      farmId: currentFarmId,
+      farmName: currentFarm,
+      date: currentDate,
+      submittedBy: currentUser.uid,
+      submittedByEmail: currentUser.email,
+      submittedByName: currentSubmitter,
+      timestamp: firebase.database.ServerValue.TIMESTAMP,
+      totalPigs: all.length,
+      totalSows: all.filter(p=>p.sex==='sow').length,
+      totalBoars: all.filter(p=>p.sex==='boar').length,
+      totalUnknown: all.filter(p=>p.sex==='unknown').length,
+      totalPiglets: all.reduce((s,p)=>s+p.piglets_m+p.piglets_f+(p.piglets_u||0),0),
+      withRecord: all.filter(p=>p.found).length,
+      noRecord: all.filter(p=>!p.found).length,
+      needsVerification: all.filter(p=>p.needsVerification).length,
+      barns: allBarns.map(b => ({
+        barnName: b.barnName,
+        note: b.note || '',
+        pigs: b.pigs.map(p => ({
+          id: p.id,
+          earTag: p.earTag || '',
+          sex: p.sex,
+          found: p.found,
+          needsVerification: p.needsVerification || false,
+          piglets_m: p.piglets_m || 0,
+          piglets_f: p.piglets_f || 0,
+          piglets_u: p.piglets_u || 0
+        }))
+      }))
+    };
+    
+    if (_recountReportId) {
+      // UPDATE mode (recount) — ใช้ ID เดิม
+      await db.ref('reports/' + _recountReportId).set(report);
+      showAlert('summaryAlert', 'success', '✅ บันทึกทับสำเร็จ! ใช้เลขเอกสารเดิม ' + currentCntNumber);
+      _recountReportId = null;
+    } else {
+      // CREATE mode — รายงานใหม่
+      await db.ref('reports').push(report);
+      showAlert('summaryAlert', 'success', '✅ ส่งผลตรวจนับสำเร็จ');
+    }
+    
+    // Clear
+    currentPigs = [];
+    savedBarns = [];
+    currentFarm = ''; currentFarmId = ''; currentCntNumber = '';
+    clearDraft();
+    setTimeout(() => showPage('history'), 1500);
+  } catch (err) {
+    showAlert('summaryAlert', 'error', '❌ ส่งไม่สำเร็จ: ' + err.message);
+  }
 }
 
-function clearAutoSave(){ localStorage.removeItem(SESSION_KEY); }
+// ============================================================
+// REPORTS (real-time)
+// ============================================================
+// Helper: Firebase บางครั้งคืน array กลับมาเป็น object — ต้อง normalize เสมอ
+function toArray(v) {
+  if (Array.isArray(v)) return v;
+  if (v && typeof v === 'object') return Object.values(v);
+  return [];
+}
 
-function checkDraftSession() {
-  const raw=localStorage.getItem(SESSION_KEY);
-  if(!raw) return;
-  try{
-    const d=JSON.parse(raw);
-    const total=(d.currentPigs||[]).length+(d.savedBarns||[]).flatMap(b=>b.pigs||[]).length;
-    if(!total){clearAutoSave();return;}
-    const msg=`พบข้อมูลตรวจนับค้างอยู่\n\n📄 ${d.currentReportId}\n🏠 ${d.currentFarm} | 📅 ${d.currentDate}\n👤 ${d.currentSubmitter}\nรวม ${total} ตัว ใน ${(d.savedBarns||[]).length+(d.currentPigs?.length?1:0)} เล้า\n\nต้องการโหลดต่อไหม?`;
-    if(confirm(msg)){
-      currentFarm=d.currentFarm;currentDate=d.currentDate;currentSubmitter=d.currentSubmitter;
-      currentReportId=d.currentReportId;currentBarn=d.currentBarn;
-      currentPigs=d.currentPigs||[];savedBarns=d.savedBarns||[];
-      updateCountUI();
-      switchToCount();
-      showAlert('alertBox','success','✅ โหลดข้อมูลค้าง — '+total+' ตัว');
-    } else clearAutoSave();
-  }catch(e){clearAutoSave();}
+function subscribeReports() {
+  db.ref('reports').orderByChild('timestamp').limitToLast(200).on('value', snap => {
+    const arr = [];
+    snap.forEach(child => {
+      const data = child.val();
+      // Normalize barns และ pigs ให้เป็น array เสมอ
+      data.barns = toArray(data.barns).map(b => ({
+        ...b,
+        pigs: toArray(b.pigs)
+      }));
+      arr.unshift({ id: child.key, ...data });
+    });
+    allReports = arr;
+    renderHistory();
+    if (document.getElementById('page-dashboard').classList.contains('active')) renderDashboard();
+    if (document.getElementById('page-alerts').classList.contains('active')) renderAlerts();
+  });
+}
+
+function renderHistory() {
+  applyFilter();
+}
+
+function applyFilter() {
+  const farm = (document.getElementById('filterFarm')?.value || '').trim().toLowerCase();
+  const sub = (document.getElementById('filterSubmitter')?.value || '').trim().toLowerCase();
+  const from = document.getElementById('filterDateFrom')?.value;
+  const to = document.getElementById('filterDateTo')?.value;
+  
+  _historyFiltered = allReports.filter(r => {
+    if (farm && !(r.farmName||'').toLowerCase().includes(farm)) return false;
+    if (sub && !(r.submittedByName||'').toLowerCase().includes(sub) && !(r.submittedByEmail||'').toLowerCase().includes(sub)) return false;
+    if (from && r.date < from) return false;
+    if (to && r.date > to) return false;
+    return true;
+  });
+  
+  const el = document.getElementById('historyList');
+  const cntEl = document.getElementById('filterCount');
+  
+  if (cntEl) cntEl.textContent = _historyFiltered.length < allReports.length
+    ? `แสดง ${_historyFiltered.length} จาก ${allReports.length} รายการ`
+    : `ทั้งหมด ${_historyFiltered.length} รายการ`;
+  
+  // Render combined reports section (group by farm+date if 2+ reports)
+  renderCombinedReports();
+  
+  if (!_historyFiltered.length) {
+    el.innerHTML = '<div class="empty">ไม่มีรายงาน</div>';
+    return;
+  }
+  
+  el.innerHTML = _historyFiltered.map((r, i) => `
+    <div class="report-card" onclick="showReportDetail(${i})">
+      <div class="rc-num">📄 ${r.countingNumber || r.id}</div>
+      <div class="rc-farm">🏠 ${r.farmName}</div>
+      <div class="rc-date">📅 ${formatDate(r.date)}</div>
+      <div class="rc-meta">รวม ${r.totalPigs} | ♀${r.totalSows} ♂${r.totalBoars}${(r.totalPiglets||0)>0?' 🐷'+r.totalPiglets:''} | ✓${r.withRecord} ✗${r.noRecord}
+        ${r.needsVerification>0?'<span class="badge badge-warning">⚠️ ตรวจสอบ '+r.needsVerification+'</span>':''}
+      </div>
+      <div style="font-size:.78rem;color:#999;margin-top:2px">👤 ${r.submittedByName || r.submittedByEmail}</div>
+    </div>
+  `).join('');
+}
+
+function renderCombinedReports() {
+  const el = document.getElementById('combinedReportsSection');
+  if (!el) return;
+  
+  // Group by farm + date
+  const groups = {};
+  _historyFiltered.forEach(r => {
+    const key = r.farmName + '|' + r.date;
+    if (!groups[key]) groups[key] = { farmName: r.farmName, date: r.date, reports: [] };
+    groups[key].reports.push(r);
+  });
+  
+  // เฉพาะที่มี 2 รายงานขึ้นไป
+  const multiGroups = Object.values(groups).filter(g => g.reports.length >= 2);
+  
+  if (!multiGroups.length) {
+    el.innerHTML = '';
+    return;
+  }
+  
+  el.innerHTML = `
+    <div style="background:linear-gradient(135deg,#fdf6ee,#fff);border:2px solid var(--accent);border-radius:12px;padding:14px;margin-bottom:14px;">
+      <div style="font-weight:700;color:var(--primary);font-size:.95rem;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+        📦 รายงานรวม (ฟาร์ม + วันที่เดียวกัน)
+        <span style="font-size:.72rem;color:#666;font-weight:400">— ดาวน์โหลดรวมทุก User ที่นับ</span>
+      </div>
+      ${multiGroups.map(g => {
+        const totalPigs = g.reports.reduce((s,r) => s+(r.totalPigs||0), 0);
+        const submitters = [...new Set(g.reports.map(r => r.submittedByName || r.submittedByEmail))];
+        return `<div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div style="flex:1;min-width:200px;">
+            <div style="font-weight:700;color:var(--primary)">🏠 ${g.farmName} — ${formatDate(g.date)}</div>
+            <div style="font-size:.82rem;color:#666;margin-top:3px;">
+              ${g.reports.length} รายงาน | รวม ${totalPigs} ตัว | 👤 ${submitters.join(', ')}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-blue btn-sm" onclick="exportCombinedExcel('${g.farmName.replace(/'/g,"\\'")}','${g.date}')">📥 Excel รวม</button>
+            <button class="btn btn-gray btn-sm" onclick="printCombinedReport('${g.farmName.replace(/'/g,"\\'")}','${g.date}')">🖨️ พิมพ์รวม</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function buildCombinedReport(farmName, date) {
+  const reports = allReports.filter(r => r.farmName === farmName && r.date === date);
+  
+  // Normalize และรวมเล้าจากทุกรายงาน
+  const allBarns = [];
+  reports.forEach(r => {
+    const submitter = r.submittedByName || r.submittedByEmail;
+    toArray(r.barns).forEach(b => {
+      allBarns.push({
+        barnName: b.barnName,
+        note: (b.note || '') + (submitter ? ' [ผู้นับ: ' + submitter + ']' : ''),
+        pigs: toArray(b.pigs),
+        _submitter: submitter,
+        _cnt: r.countingNumber
+      });
+    });
+  });
+  
+  const submitters = [...new Set(reports.map(r => r.submittedByName || r.submittedByEmail))];
+  const cntNumbers = reports.map(r => r.countingNumber).join(', ');
+  
+  return {
+    countingNumber: 'รวม-' + date.replace(/-/g, '') + ' (' + reports.length + ' รายงาน)',
+    farmName,
+    date,
+    submittedByName: submitters.join(', '),
+    submittedByEmail: submitters.join(', '),
+    totalPigs:    reports.reduce((s,r) => s + (r.totalPigs||0), 0),
+    totalSows:    reports.reduce((s,r) => s + (r.totalSows||0), 0),
+    totalBoars:   reports.reduce((s,r) => s + (r.totalBoars||0), 0),
+    totalPiglets: reports.reduce((s,r) => s + (r.totalPiglets||0), 0),
+    withRecord:   reports.reduce((s,r) => s + (r.withRecord||0), 0),
+    noRecord:     reports.reduce((s,r) => s + (r.noRecord||0), 0),
+    needsVerification: reports.reduce((s,r) => s + (r.needsVerification||0), 0),
+    barns: allBarns,
+    _isCombined: true,
+    _originalCnts: cntNumbers,
+    _reportCount: reports.length
+  };
+}
+
+function exportCombinedExcel(farmName, date) {
+  const combined = buildCombinedReport(farmName, date);
+  exportReportExcelFromData(combined);
+}
+
+function printCombinedReport(farmName, date) {
+  const combined = buildCombinedReport(farmName, date);
+  printReportData(combined);
+}
+
+function clearFilter() {
+  document.getElementById('filterFarm').value = '';
+  document.getElementById('filterSubmitter').value = '';
+  document.getElementById('filterDateFrom').value = '';
+  document.getElementById('filterDateTo').value = '';
+  applyFilter();
+}
+
+function showReportDetail(i) {
+  const r = _historyFiltered[i];
+  document.getElementById('detailTitle').textContent = `${r.farmName} — ${formatDate(r.date)}`;
+  const barns = toArray(r.barns).map(b => ({...b, pigs: toArray(b.pigs)}));
+  const isAdmin = userProfile.role === 'admin';
+  document.getElementById('detailContent').innerHTML = `
+    <div style="font-size:.85rem;color:#666;margin-bottom:10px">📄 ${r.countingNumber} | 👤 ${r.submittedByName||r.submittedByEmail}</div>
+    <div class="stat-grid" style="margin-bottom:12px">
+      <div class="stat-box"><div class="num">${r.totalPigs}</div><div class="lbl">รวม</div></div>
+      <div class="stat-box sow-box"><div class="num" style="color:var(--sow)">${r.totalSows}</div><div class="lbl">♀</div></div>
+      <div class="stat-box boar-box"><div class="num" style="color:var(--boar)">${r.totalBoars}</div><div class="lbl">♂</div></div>
+    </div>
+    ${barns.map(b => `
+      <div style="margin-bottom:8px">
+        <div style="font-weight:700;color:var(--primary);font-size:.88rem;margin-bottom:4px">🏚️ ${b.barnName}</div>
+        ${b.note?`<div style="font-size:.78rem;color:#888;margin-bottom:4px">📝 ${b.note}</div>`:''}
+        ${(b.pigs||[]).map(p => `
+          <div style="display:flex;align-items:center;gap:5px;padding:4px 0;border-bottom:1px solid #f5f5f5;font-size:.82rem">
+            <span class="badge ${p.sex==='sow'?'badge-sow':p.sex==='boar'?'badge-boar':'badge-unknown'}">${p.sex==='sow'?'♀':p.sex==='boar'?'♂':'?'}</span>
+            <span style="flex:1;font-weight:600">${p.id}</span>
+            <span class="badge ${p.found?'badge-ok':'badge-no'}">${p.found?'✓':'✗'}</span>
+            ${(p.piglets_m+p.piglets_f+(p.piglets_u||0))>0?`<span class="badge badge-piglet">🐷${p.piglets_m+p.piglets_f+(p.piglets_u||0)}</span>`:''}
+          </div>`).join('')}
+      </div>`).join('')}
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-orange btn-sm" onclick="recountReport(${i})">🔄 Recount (แก้ไข)</button>
+      <button class="btn btn-blue btn-sm" onclick="exportReportExcel(${i})">📥 Excel</button>
+      <button class="btn btn-gray btn-sm" onclick="printReportFromHistory(${i})">🖨️ พิมพ์</button>
+      ${isAdmin?`<button class="btn btn-red btn-sm" onclick="deleteReport('${r.id}')">🗑️ ลบ</button>`:''}
+    </div>`;
+  document.getElementById('detailOverlay').classList.remove('hidden');
+}
+
+async function deleteReport(id) {
+  if (!confirm('ลบรายงานนี้?')) return;
+  await db.ref('reports/' + id).remove();
+  closeDetail();
+  toast('✅ ลบแล้ว');
+}
+
+function closeDetail(e) {
+  if (!e || e.target === document.getElementById('detailOverlay')) {
+    document.getElementById('detailOverlay').classList.add('hidden');
+  }
 }
 
 // ============================================================
 // DASHBOARD
 // ============================================================
-function loadDashboard() {
-  const reports = getLocalReports();
+function renderDashboard() {
   const el = document.getElementById('dashContent');
-  if (!reports.length) { el.innerHTML='<div class="empty">ยังไม่มีรายงานในเครื่อง<br><small>ส่งผลตรวจนับแล้วกลับมาดูได้เลย</small></div>'; return; }
+  if (!allReports.length) {
+    el.innerHTML = '<div class="empty">ยังไม่มีรายงานในระบบ — เริ่มตรวจนับก่อน</div>';
+    return;
+  }
 
-  const totalReports = reports.length;
-  const totalPigs = reports.reduce((s,r)=>s+(r.totalPigs||0),0);
-  const totalSows = reports.reduce((s,r)=>s+(r.totalSows||0),0);
-  const totalBoars = reports.reduce((s,r)=>s+(r.totalBoars||0),0);
-  const totalPiglets = reports.reduce((s,r)=>s+(r.totalPiglets||0),0);
+  // ── คำนวณข้อมูลพื้นฐาน ──
+  const totalReports = allReports.length;
+  const totalPigs = allReports.reduce((s,r)=>s+(r.totalPigs||0),0);
+  const totalSows = allReports.reduce((s,r)=>s+(r.totalSows||0),0);
+  const totalBoars = allReports.reduce((s,r)=>s+(r.totalBoars||0),0);
+  const totalPiglets = allReports.reduce((s,r)=>s+(r.totalPiglets||0),0);
+  const totalVerify = allReports.reduce((s,r)=>s+(r.needsVerification||0),0);
+  const totalNoRecord = allReports.reduce((s,r)=>s+(r.noRecord||0),0);
 
-  // Group by farm
+  // เดือนนี้
+  const now = new Date();
+  const thisMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  const monthReports = allReports.filter(r => (r.date||'').startsWith(thisMonth));
+  const monthPigs = monthReports.reduce((s,r)=>s+(r.totalPigs||0),0);
+
+  // ── จัดกลุ่มตามฟาร์ม ──
   const byFarm = {};
-  reports.forEach(r => {
-    if (!r.farm) return;
-    if (!byFarm[r.farm]) byFarm[r.farm] = {count:0, pigs:0, sows:0, boars:0};
-    byFarm[r.farm].count++;
-    byFarm[r.farm].pigs += r.totalPigs||0;
-    byFarm[r.farm].sows += r.totalSows||0;
-    byFarm[r.farm].boars += r.totalBoars||0;
+  allReports.forEach(r => {
+    if (!r.farmName) return;
+    if (!byFarm[r.farmName]) byFarm[r.farmName] = {count:0,pigs:0,sows:0,boars:0,piglets:0,verify:0,lastDate:''};
+    const f = byFarm[r.farmName];
+    f.count++;
+    f.pigs += r.totalPigs||0;
+    f.sows += r.totalSows||0;
+    f.boars += r.totalBoars||0;
+    f.piglets += r.totalPiglets||0;
+    f.verify += r.needsVerification||0;
+    if ((r.date||'') > f.lastDate) f.lastDate = r.date;
   });
+  const farmEntries = Object.entries(byFarm);
+  const maxPigs = Math.max(...farmEntries.map(([_,d])=>d.pigs), 1);
 
-  const maxPigs = Math.max(...Object.values(byFarm).map(f=>f.pigs), 1);
+  // ── ฟาร์ม Top 5 ──
+  const topFarms = [...farmEntries].sort((a,b)=>b[1].pigs - a[1].pigs).slice(0, 5);
 
-  // Recent 7 reports
-  const recent = reports.slice(0,7).reverse();
+  // ── สัดส่วนเพศ (donut) ──
+  const sexTotal = totalSows + totalBoars;
+  const sowPct = sexTotal > 0 ? (totalSows/sexTotal*100) : 0;
+  const boarPct = sexTotal > 0 ? (totalBoars/sexTotal*100) : 0;
+  const circumference = 2 * Math.PI * 60; // radius 60
+  const sowDash = (sowPct/100) * circumference;
+  const boarDash = (boarPct/100) * circumference;
 
+  // ── กิจกรรมล่าสุด ──
+  const recent = allReports.slice(0, 6);
+
+  // ── แจ้งเตือน ──
+  const alerts = [];
+  if (totalVerify > 0) alerts.push({type:'warning', icon:'⚠️', title:`มีรายการที่ต้องตรวจสอบ ${totalVerify} ตัว`, msg:'รายการเหล่านี้ไม่พบในพันธุ์ประวัติ ต้องตรวจสอบรหัสเต็มภายหลัง'});
+  if (totalNoRecord > totalPigs * 0.1) alerts.push({type:'warning', icon:'📋', title:`พบหมูไม่มีประวัติ ${totalNoRecord} ตัว (${(totalNoRecord/totalPigs*100).toFixed(0)}%)`, msg:'ควรอัพเดทพันธุ์ประวัติให้ครบถ้วน'});
+  if (alerts.length === 0) alerts.push({type:'success', icon:'✅', title:'ระบบทำงานปกติ', msg:'ไม่มีรายการต้องตรวจสอบในขณะนี้'});
+
+  // ── เทรนด์ 30 วันล่าสุด ──
+  const last30 = {};
+  for (let i=29; i>=0; i--) {
+    const d = new Date(now); d.setDate(d.getDate()-i);
+    const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    last30[key] = 0;
+  }
+  allReports.forEach(r => {
+    if (r.date && last30[r.date] !== undefined) last30[r.date] += r.totalPigs || 0;
+  });
+  const trendData = Object.entries(last30);
+  const maxTrend = Math.max(...trendData.map(([_,v])=>v), 1);
+
+  // ────────────────────────────────────
+  // RENDER
+  // ────────────────────────────────────
   el.innerHTML = `
-    <div class="stat-grid" style="margin-bottom:16px">
-      <div class="stat-box"><div class="num">${totalReports}</div><div class="lbl">รายงานทั้งหมด</div></div>
-      <div class="stat-box sow-box"><div class="num" style="color:var(--sow)">${totalSows}</div><div class="lbl">♀ แม่รวม</div></div>
-      <div class="stat-box boar-box"><div class="num" style="color:var(--boar)">${totalBoars}</div><div class="lbl">♂ พ่อรวม</div></div>
-      <div class="stat-box"><div class="num">${totalPigs}</div><div class="lbl">หมูรวมทั้งหมด</div></div>
-      <div class="stat-box piglet-box"><div class="num" style="color:var(--piglet)">${totalPiglets}</div><div class="lbl">🐷 ลูกรวม</div></div>
-      <div class="stat-box" style="border-top-color:#9b59b6"><div class="num" style="color:#9b59b6">${reports.filter(r=>!r.synced).length}</div><div class="lbl">รอซิงค์</div></div>
+    <!-- Hero Section -->
+    <div class="dash-hero">
+      <div class="dash-hero-top">
+        <div>
+          <h1>📊 รายงานสรุปการตรวจนับสต๊อกสุกรพันธุ์</h1>
+          <p>Piggy Check-in — ระบบเช็กชื่อพ่อ-แม่พันธุ์อัจฉริยะ</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <span class="date-stamp">📅 ${new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'})}</span>
+          <button class="btn btn-sm" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3)" onclick="printDashboard()">🖨️ Export PDF</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-icon">🐷</div>
+          <div class="kpi-num">${totalPigs.toLocaleString()}</div>
+          <div class="kpi-lbl">หมูพ่อ-แม่พันธุ์ทั้งหมด</div>
+          <div class="kpi-sub">จาก ${totalReports} รายงาน</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">♀</div>
+          <div class="kpi-num">${totalSows.toLocaleString()}</div>
+          <div class="kpi-lbl">แม่พันธุ์</div>
+          <div class="kpi-sub">${sexTotal>0?sowPct.toFixed(0)+'% ของทั้งหมด':''}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">♂</div>
+          <div class="kpi-num">${totalBoars.toLocaleString()}</div>
+          <div class="kpi-lbl">พ่อพันธุ์</div>
+          <div class="kpi-sub">${sexTotal>0?boarPct.toFixed(0)+'% ของทั้งหมด':''}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">🐽</div>
+          <div class="kpi-num">${totalPiglets.toLocaleString()}</div>
+          <div class="kpi-lbl">ลูกหมูรวม</div>
+          <div class="kpi-sub">${totalSows>0?'เฉลี่ย '+(totalPiglets/totalSows).toFixed(1)+' ตัว/แม่':''}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">📅</div>
+          <div class="kpi-num">${monthPigs.toLocaleString()}</div>
+          <div class="kpi-lbl">เดือนนี้</div>
+          <div class="kpi-sub">${monthReports.length} รายงาน</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">🏠</div>
+          <div class="kpi-num">${farmEntries.length}</div>
+          <div class="kpi-lbl">ฟาร์มที่ตรวจนับ</div>
+          <div class="kpi-sub">รวมทุกฟาร์ม</div>
+        </div>
+      </div>
     </div>
 
-    <div style="font-size:.88rem;font-weight:700;color:var(--primary);margin-bottom:10px">📊 จำนวนหมูรวมแต่ละฟาร์ม</div>
-    ${Object.entries(byFarm).map(([farm,d])=>`
-      <div style="margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;font-size:.83rem;margin-bottom:3px">
-          <span>🏠 ${farm}</span><span style="color:#888">${d.pigs} ตัว (${d.count} รายงาน)</span>
+    <!-- 2-column layout -->
+    <div class="dash-grid-2">
+      <!-- Bar Chart: Pigs by Farm -->
+      <div class="dash-section">
+        <h3>📊 จำนวนหมูแต่ละฟาร์ม</h3>
+        <div class="bar-chart">
+          ${farmEntries.sort((a,b)=>b[1].pigs-a[1].pigs).map(([farm,d]) => `
+            <div class="bar-row">
+              <div class="bar-label">
+                <strong>🏠 ${farm}</strong>
+                <span class="val">${d.pigs.toLocaleString()} ตัว</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${Math.max(Math.round(d.pigs/maxPigs*100),5)}%">
+                  ${d.pigs > maxPigs*0.2 ? d.count+' รายงาน' : ''}
+                </div>
+              </div>
+            </div>`).join('')}
         </div>
-        <div style="background:#f0f0f0;border-radius:20px;height:12px;overflow:hidden">
-          <div style="height:100%;background:linear-gradient(90deg,var(--sow),var(--primary));border-radius:20px;width:${Math.round(d.sows/Math.max(d.pigs,1)*100*(d.pigs/maxPigs))}%;display:inline-block"></div><div style="height:100%;background:linear-gradient(90deg,var(--boar),#1a6fa0);border-radius:20px;width:${Math.round(d.boars/Math.max(d.pigs,1)*100*(d.pigs/maxPigs))}%;display:inline-block"></div>
-        </div>
-        <div style="font-size:.75rem;color:#aaa;margin-top:2px">♀${d.sows} ♂${d.boars}</div>
-      </div>`).join('')}
+      </div>
 
-    <hr style="margin:14px 0">
-    <div style="font-size:.88rem;font-weight:700;color:var(--primary);margin-bottom:10px">📅 รายงานล่าสุด 7 รายการ</div>
-    ${recent.map(r=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:.82rem">
-        <div>
-          <span style="font-weight:600">🏠 ${r.farm||'-'}</span>
-          <span style="color:#aaa;margin-left:6px">${formatDate(r.date)}</span>
+      <!-- Donut Chart: Sex Distribution -->
+      <div class="dash-section">
+        <h3>🥧 สัดส่วนพ่อ-แม่พันธุ์</h3>
+        <div class="donut-wrap">
+          <svg class="donut-svg" viewBox="0 0 160 160">
+            <circle cx="80" cy="80" r="60" fill="none" stroke="#f0f0f0" stroke-width="24"/>
+            <circle cx="80" cy="80" r="60" fill="none" stroke="#c0392b" stroke-width="24"
+              stroke-dasharray="${sowDash} ${circumference}"
+              stroke-dashoffset="0" transform="rotate(-90 80 80)" stroke-linecap="butt"/>
+            <circle cx="80" cy="80" r="60" fill="none" stroke="#2980b9" stroke-width="24"
+              stroke-dasharray="${boarDash} ${circumference}"
+              stroke-dashoffset="${-sowDash}" transform="rotate(-90 80 80)" stroke-linecap="butt"/>
+            <text x="80" y="76" text-anchor="middle" font-size="18" font-weight="800" fill="#8B4513" font-family="Sarabun">${sexTotal.toLocaleString()}</text>
+            <text x="80" y="94" text-anchor="middle" font-size="10" fill="#888" font-family="Sarabun">รวม</text>
+          </svg>
+          <div class="donut-legend">
+            <div class="donut-legend-item">
+              <div class="donut-dot" style="background:#c0392b"></div>
+              <div><strong>♀ แม่พันธุ์</strong> ${totalSows.toLocaleString()} ตัว<br><span style="color:#888;font-size:0.78rem">${sowPct.toFixed(1)}%</span></div>
+            </div>
+            <div class="donut-legend-item">
+              <div class="donut-dot" style="background:#2980b9"></div>
+              <div><strong>♂ พ่อพันธุ์</strong> ${totalBoars.toLocaleString()} ตัว<br><span style="color:#888;font-size:0.78rem">${boarPct.toFixed(1)}%</span></div>
+            </div>
+          </div>
         </div>
-        <div style="text-align:right">
-          <span style="color:var(--primary);font-weight:700">${r.totalPigs||0} ตัว</span>
-          <span class="badge ${r.synced?'badge-ok':'badge-no'}" style="margin-left:4px">${r.synced?'☁️':'📵'}</span>
-        </div>
-      </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Top Farms -->
+    <div class="dash-section">
+      <h3>🏆 Top 5 ฟาร์ม (จำนวนหมูมากสุด)</h3>
+      ${topFarms.map((entry, i) => {
+        const [farm, d] = entry;
+        const medalClass = i===0?'gold':i===1?'silver':i===2?'bronze':'';
+        return `<div class="farm-rank">
+          <div class="farm-rank-num ${medalClass}">${i+1}</div>
+          <div class="farm-rank-info">
+            <div class="farm-rank-name">🏠 ${farm}</div>
+            <div class="farm-rank-meta">♀${d.sows} ♂${d.boars} | 🐷${d.piglets} | ${d.count} รายงาน | ตรวจล่าสุด ${formatDate(d.lastDate)}</div>
+          </div>
+          <div class="farm-rank-val">${d.pigs.toLocaleString()}</div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <!-- Trend Last 30 days -->
+    <div class="dash-section">
+      <h3>📈 แนวโน้ม 30 วันล่าสุด</h3>
+      <svg viewBox="0 0 600 120" style="width:100%;height:120px;">
+        ${trendData.map(([_,v], i) => {
+          const x = (i / (trendData.length-1)) * 580 + 10;
+          const h = v > 0 ? Math.max((v/maxTrend) * 100, 2) : 0;
+          const y = 110 - h;
+          return `<rect x="${x-7}" y="${y}" width="14" height="${h}" fill="url(#barGrad)" rx="2"/>`;
+        }).join('')}
+        <defs>
+          <linearGradient id="barGrad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#D2691E"/>
+            <stop offset="100%" stop-color="#8B4513"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:#888;margin-top:4px;">
+        <span>${formatDate(trendData[0][0])}</span>
+        <span>วันนี้</span>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align:center;color:#aaa;font-size:0.78rem;padding:14px;">
+      🐷 Piggy Check-in Dashboard | สร้างเมื่อ ${new Date().toLocaleString('th-TH')}
+    </div>
   `;
 }
 
-// ============================================================
-// FILTER HISTORY
-// ============================================================
-let _allHistoryReports = [];
-let _historyIsLocal2 = true;
+// ── Print Dashboard ──
+function printDashboard() {
+  window.print();
+}
 
-function applyFilter() {
-  const farm = (document.getElementById('filterFarm').value||'').trim().toLowerCase();
-  const sub = (document.getElementById('filterSubmitter').value||'').trim().toLowerCase();
-  const from = document.getElementById('filterDateFrom').value;
-  const to = document.getElementById('filterDateTo').value;
+// ============================================================
+// ALERTS PAGE
+// ============================================================
+function renderAlerts() {
+  const el = document.getElementById('alertsContent');
+  if (!allReports.length) {
+    el.innerHTML = '<div class="empty">ยังไม่มีรายงานในระบบ</div>';
+    return;
+  }
 
-  let filtered = _allHistoryReports.filter(r => {
-    const rFarm = (r.farm||'').toLowerCase();
-    const rSub = (r.submittedBy||'').toLowerCase();
-    const rDate = r.date||'';
-    if (farm && !rFarm.includes(farm)) return false;
-    if (sub && !rSub.includes(sub)) return false;
-    if (from && rDate < from) return false;
-    if (to && rDate > to) return false;
-    return true;
+  // คำนวณสถิติแจ้งเตือน
+  const totalVerify = allReports.reduce((s,r)=>s+(r.needsVerification||0),0);
+  const totalNoRecord = allReports.reduce((s,r)=>s+(r.noRecord||0),0);
+  const totalPigs = allReports.reduce((s,r)=>s+(r.totalPigs||0),0);
+  const noRecordPct = totalPigs > 0 ? (totalNoRecord/totalPigs*100) : 0;
+
+  // ฟาร์มที่ไม่ได้ตรวจนับเกิน 30 วัน
+  const now = new Date();
+  const cutoff = new Date(now); cutoff.setDate(cutoff.getDate()-30);
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+  const farmLastDate = {};
+  allReports.forEach(r => {
+    if (!r.farmName) return;
+    if (!farmLastDate[r.farmName] || r.date > farmLastDate[r.farmName]) {
+      farmLastDate[r.farmName] = r.date;
+    }
+  });
+  const inactiveFarms = Object.entries(farmLastDate).filter(([_,d]) => d < cutoffStr);
+
+  // รายงานที่มีรายการต้องตรวจสอบ
+  const reportsWithVerify = allReports.filter(r => (r.needsVerification||0) > 0);
+
+  // รายงานที่มีหมูไม่มีประวัติเยอะ (>20%)
+  const reportsHighNoRecord = allReports.filter(r => {
+    const pct = (r.totalPigs||0) > 0 ? (r.noRecord/r.totalPigs*100) : 0;
+    return pct > 20 && r.noRecord > 5;
   });
 
-  document.getElementById('filterCount').textContent = filtered.length < _allHistoryReports.length
-    ? `แสดง ${filtered.length} จาก ${_allHistoryReports.length} รายการ`
-    : `ทั้งหมด ${filtered.length} รายการ`;
+  // ── KPI Summary ──
+  const summaryHTML = `
+    <div class="kpi-grid" style="margin-bottom:20px;">
+      <div style="background:linear-gradient(135deg,#ffc107,#ff9800);color:#fff;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:2rem;font-weight:800;line-height:1;">${totalVerify}</div>
+        <div style="font-size:.8rem;margin-top:6px;">⚠️ รายการต้องตรวจสอบ</div>
+      </div>
+      <div style="background:linear-gradient(135deg,#f44336,#d32f2f);color:#fff;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:2rem;font-weight:800;line-height:1;">${totalNoRecord}</div>
+        <div style="font-size:.8rem;margin-top:6px;">📋 หมูไม่มีประวัติ</div>
+      </div>
+      <div style="background:linear-gradient(135deg,#9e9e9e,#616161);color:#fff;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:2rem;font-weight:800;line-height:1;">${inactiveFarms.length}</div>
+        <div style="font-size:.8rem;margin-top:6px;">🏠 ฟาร์มไม่ได้นับ 30 วัน</div>
+      </div>
+      <div style="background:linear-gradient(135deg,#4caf50,#388e3c);color:#fff;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:2rem;font-weight:800;line-height:1;">${noRecordPct.toFixed(1)}%</div>
+        <div style="font-size:.8rem;margin-top:6px;">📊 อัตรา "ไม่มีประวัติ"</div>
+      </div>
+    </div>`;
 
-  renderHistory(filtered, _historyIsLocal2);
+  // ── สร้าง alerts list ──
+  let alertsHTML = '';
+
+  if (totalVerify === 0 && totalNoRecord === 0 && inactiveFarms.length === 0) {
+    alertsHTML = `
+      <div class="alert-box success">
+        <div class="alert-icon">✅</div>
+        <div class="alert-content">
+          <strong>ระบบทำงานปกติ</strong>
+          <span style="color:#666">ไม่มีรายการต้องดำเนินการในขณะนี้</span>
+        </div>
+      </div>`;
+  } else {
+    // 1. รายการต้องตรวจสอบ
+    if (reportsWithVerify.length > 0) {
+      alertsHTML += `
+        <div style="font-size:.95rem;font-weight:700;color:var(--primary);margin:14px 0 8px;">⚠️ รายการต้องตรวจสอบรหัสเต็ม (${totalVerify} ตัว)</div>
+        ${reportsWithVerify.slice(0,10).map(r => `
+          <div class="alert-box warning" style="cursor:pointer;" onclick="findAndShowReport('${r.id}')">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-content">
+              <strong>🏠 ${r.farmName} — ${formatDate(r.date)}</strong>
+              <span style="color:#666">มีรายการต้องตรวจสอบ ${r.needsVerification} ตัว | ผู้ตรวจนับ: ${r.submittedByName || r.submittedByEmail}</span>
+            </div>
+          </div>
+        `).join('')}`;
+    }
+
+    // 2. รายงานที่มีหมูไม่มีประวัติเยอะ
+    if (reportsHighNoRecord.length > 0) {
+      alertsHTML += `
+        <div style="font-size:.95rem;font-weight:700;color:var(--primary);margin:14px 0 8px;">📋 รายงานที่มีหมูไม่มีประวัติเยอะ (>20%)</div>
+        ${reportsHighNoRecord.slice(0,5).map(r => `
+          <div class="alert-box" style="background:#ffebee;border-left:4px solid var(--red);cursor:pointer;" onclick="findAndShowReport('${r.id}')">
+            <div class="alert-icon">📋</div>
+            <div class="alert-content">
+              <strong>🏠 ${r.farmName} — ${formatDate(r.date)}</strong>
+              <span style="color:#666">หมูไม่มีประวัติ ${r.noRecord}/${r.totalPigs} ตัว (${(r.noRecord/r.totalPigs*100).toFixed(0)}%) — ควรอัพเดทพันธุ์ประวัติ</span>
+            </div>
+          </div>
+        `).join('')}`;
+    }
+
+    // 3. ฟาร์มไม่ได้ตรวจนับนาน
+    if (inactiveFarms.length > 0) {
+      alertsHTML += `
+        <div style="font-size:.95rem;font-weight:700;color:var(--primary);margin:14px 0 8px;">🏠 ฟาร์มที่ไม่ได้ตรวจนับเกิน 30 วัน</div>
+        ${inactiveFarms.map(([farm, lastDate]) => {
+          const daysAgo = Math.floor((now - new Date(lastDate)) / (1000*60*60*24));
+          return `
+          <div class="alert-box info">
+            <div class="alert-icon">📅</div>
+            <div class="alert-content">
+              <strong>🏠 ${farm}</strong>
+              <span style="color:#666">ตรวจนับล่าสุดเมื่อ ${formatDate(lastDate)} (${daysAgo} วันที่แล้ว)</span>
+            </div>
+          </div>
+        `}).join('')}`;
+    }
+  }
+
+  // ── กิจกรรมล่าสุด ──
+  const recent = allReports.slice(0, 8);
+  const recentHTML = `
+    <div style="margin-top:20px;padding-top:16px;border-top:2px solid #fdf6ee;">
+      <div style="font-size:1rem;font-weight:700;color:var(--primary);margin-bottom:14px;display:flex;align-items:center;gap:8px;">📅 กิจกรรมล่าสุด</div>
+      ${recent.map(r => `
+        <div class="timeline-item" style="cursor:pointer;" onclick="findAndShowReport('${r.id}')">
+          <div class="timeline-dot">🐷</div>
+          <div class="timeline-content">
+            <div class="timeline-title">🏠 ${r.farmName}</div>
+            <div class="timeline-meta">📄 ${r.countingNumber} | 📅 ${formatDate(r.date)} | 👤 ${r.submittedByName || r.submittedByEmail || '-'}</div>
+            <div class="timeline-stats">รวม ${r.totalPigs} ตัว | ♀${r.totalSows} ♂${r.totalBoars}${(r.totalPiglets||0)>0?' | 🐷'+r.totalPiglets:''}</div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+
+  el.innerHTML = summaryHTML + alertsHTML + recentHTML;
 }
 
-function clearFilter() {
-  document.getElementById('filterFarm').value='';
-  document.getElementById('filterSubmitter').value='';
-  document.getElementById('filterDateFrom').value='';
-  document.getElementById('filterDateTo').value='';
-  document.getElementById('filterCount').textContent='';
-  renderHistory(_allHistoryReports, _historyIsLocal2);
-}
-
-// Wrap renderHistory to store all reports for filtering
-const _origRenderHistory = renderHistory;
-function renderHistoryWithFilter(reports, isLocal) {
-  _allHistoryReports = reports;
-  _historyIsLocal2 = isLocal;
-  _origRenderHistory(reports, isLocal);
-  document.getElementById('filterCount').textContent = `ทั้งหมด ${reports.length} รายการ`;
+// คลิก alert แล้วเปิดรายงาน
+function findAndShowReport(id) {
+  const idx = _historyFiltered.findIndex(r => r.id === id);
+  if (idx >= 0) {
+    showReportDetail(idx);
+  } else {
+    // ถ้ายังไม่ได้ filter โหลดก่อน
+    _historyFiltered = allReports;
+    const idx2 = allReports.findIndex(r => r.id === id);
+    if (idx2 >= 0) showReportDetail(idx2);
+  }
 }
 
 // ============================================================
-// PRINT / PDF
+// EXPORT EXCEL
 // ============================================================
-function printReport() {
-  const report = buildReportObj();
-  const allBarns = report.barns || [];
-  const allPigs = allBarns.flatMap(b=>(b.pigs||[]).map(p=>({...p,barnName:b.barnName})));
+function exportExcel() {
+  exportReportExcelFromData(buildReportObj());
+}
 
-  const win = window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="UTF-8">
-    <title>Piggy Check-in — ${report.farm} ${report.date}</title>
+function exportReportExcel(i) {
+  exportReportExcelFromData(_historyFiltered[i]);
+}
+
+function buildReportObj() {
+  const allBarns = [...savedBarns, ...(currentPigs.length ? [{barnName: currentBarn, pigs: currentPigs, note: document.getElementById('barnNote').value}] : [])];
+  const all = allBarns.flatMap(b => b.pigs);
+  return {
+    countingNumber: currentCntNumber,
+    farmName: currentFarm,
+    date: currentDate,
+    submittedByName: currentSubmitter,
+    totalPigs: all.length,
+    totalSows: all.filter(p=>p.sex==='sow').length,
+    totalBoars: all.filter(p=>p.sex==='boar').length,
+    totalPiglets: all.reduce((s,p)=>s+p.piglets_m+p.piglets_f+(p.piglets_u||0),0),
+    withRecord: all.filter(p=>p.found).length,
+    noRecord: all.filter(p=>!p.found).length,
+    barns: allBarns
+  };
+}
+
+function exportReportExcelFromData(r) {
+  const wb = XLSX.utils.book_new();
+  
+  // Normalize ข้อมูลให้เป็น array แน่ใจอีกครั้ง (Firebase อาจส่ง object กลับมา)
+  const barns = toArray(r.barns).map(b => ({
+    ...b,
+    pigs: toArray(b.pigs)
+  }));
+  const allPigs = barns.flatMap(b => b.pigs.map(p => ({...p, barnName: b.barnName})));
+  
+  console.log('[Export Excel] รายงาน:', r.countingNumber, '| เล้า:', barns.length, '| หมูทั้งหมด:', allPigs.length);
+  if (allPigs.length === 0) {
+    alert('⚠️ ไม่พบข้อมูลรายตัวในรายงานนี้\nกรุณาตรวจสอบที่ Firebase Console → Realtime Database → reports → ' + r.id);
+    return;
+  }
+  
+  // Summary
+  const sum = [
+    ['Piggy Check-in — สรุปผลตรวจนับ'],
+    ['เลขที่เอกสาร', r.countingNumber],
+    ['ฟาร์ม', r.farmName],
+    ['วันที่', formatDate(r.date)],
+    ['ผู้ตรวจนับ', r.submittedByName || r.submittedByEmail],
+    [],
+    ['รวมทั้งหมด', r.totalPigs],
+    ['แม่พันธุ์', r.totalSows],
+    ['พ่อพันธุ์', r.totalBoars],
+    ['ลูกหมูรวม', r.totalPiglets || 0],
+    ['มีประวัติ', r.withRecord],
+    ['ไม่มีประวัติ', r.noRecord]
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sum), 'สรุปผล');
+  
+  // Detail
+  const det = [['เล้า','รหัสหมู','เพศ','มีประวัติ','ลูกผู้','ลูกเมีย','ลูกไม่ระบุ','ลูกรวม']];
+  allPigs.forEach(p => det.push([
+    p.barnName, p.id,
+    p.sex==='sow'?'แม่พันธุ์':p.sex==='boar'?'พ่อพันธุ์':'ไม่ระบุ',
+    p.found?'มีประวัติ':'ไม่มีประวัติ',
+    p.piglets_m||0, p.piglets_f||0, p.piglets_u||0, (p.piglets_m||0)+(p.piglets_f||0)+(p.piglets_u||0)
+  ]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(det), 'รายละเอียดรายตัว');
+  
+  // Verify list (no record)
+  const verify = [['เล้า','รหัสหมู','เพศ','เบอร์หู']];
+  allPigs.filter(p => !p.found).forEach(p => verify.push([p.barnName, p.id, p.sex, p.earTag || '']));
+  if (verify.length > 1) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(verify), 'รายการต้องตรวจสอบ');
+  
+  XLSX.writeFile(wb, `${r.farmName}_${r.date}_${r.countingNumber}.xlsx`);
+}
+
+// ============================================================
+// PRINT
+// ============================================================
+function printReport() { printReportData(buildReportObj()); }
+function printReportFromHistory(i) { printReportData(_historyFiltered[i]); }
+
+function printReportData(r) {
+  const barns = toArray(r.barns).map(b => ({...b, pigs: toArray(b.pigs)}));
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${r.farmName} ${r.date}</title>
     <style>
-      body{font-family:'Sarabun',Arial,sans-serif;padding:24px;color:#222;font-size:13px}
-      h1{font-size:18px;margin-bottom:4px}
-      .sub{color:#888;font-size:12px;margin-bottom:16px}
-      table{width:100%;border-collapse:collapse;margin-bottom:16px}
+      body{font-family:'Sarabun',Arial,sans-serif;padding:24px;font-size:13px}
+      h1{font-size:18px;margin-bottom:4px}.sub{color:#888;font-size:12px;margin-bottom:16px}
+      table{width:100%;border-collapse:collapse;margin-bottom:12px}
       th{background:#8B4513;color:#fff;padding:7px 10px;text-align:left;font-size:12px}
       td{padding:6px 10px;border-bottom:1px solid #eee;font-size:12px}
-      .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
-      .sbox{border:1.5px solid #ddd;border-radius:6px;padding:10px;text-align:center}
-      .sbox .n{font-size:22px;font-weight:800;color:#8B4513}
-      .sbox .l{font-size:11px;color:#888}
       .barn-header{background:#f5f0e8;padding:6px 10px;font-weight:700;margin-top:12px;border-left:4px solid #8B4513}
-      .sow{color:#c0392b}.boar{color:#2980b9}
       @media print{@page{margin:1.5cm}}
-    </style>
-  </head><body>
-    <h1>🐷 Piggy Check-in</h1>
-    <div class="sub">ระบบเช็กชื่อพ่อ-แม่พันธุ์อัจฉริยะ</div>
+    </style></head><body>
+    <h1>🐷 Piggy Check-in</h1><div class="sub">ระบบเช็กชื่อพ่อ-แม่พันธุ์อัจฉริยะ</div>
     <table><tr>
-      <td><b>เลขที่เอกสาร:</b> ${report.id}</td>
-      <td><b>ฟาร์ม:</b> ${report.farm}</td>
-      <td><b>วันที่:</b> ${formatDate(report.date)}</td>
-      <td><b>ผู้ตรวจนับ:</b> ${report.submittedBy}</td>
+      <td><b>เลขที่:</b> ${r.countingNumber}</td><td><b>ฟาร์ม:</b> ${r.farmName}</td>
+      <td><b>วันที่:</b> ${formatDate(r.date)}</td><td><b>ผู้ตรวจนับ:</b> ${r.submittedByName||r.submittedByEmail}</td>
     </tr></table>
-    <div class="summary">
-      <div class="sbox"><div class="n">${report.totalPigs}</div><div class="l">รวมทั้งหมด</div></div>
-      <div class="sbox"><div class="n sow">${report.totalSows}</div><div class="l">♀ แม่พันธุ์</div></div>
-      <div class="sbox"><div class="n boar">${report.totalBoars}</div><div class="l">♂ พ่อพันธุ์</div></div>
-      <div class="sbox"><div class="n" style="color:var(--green,#27ae60)">${report.withRecord}</div><div class="l">มีประวัติ</div></div>
-      <div class="sbox"><div class="n" style="color:#888">${report.noRecord}</div><div class="l">ไม่มีประวัติ</div></div>
-      <div class="sbox"><div class="n" style="color:#e67e22">${report.totalPiglets}</div><div class="l">🐷 ลูกรวม</div></div>
-    </div>
-    ${allBarns.map(b=>`
-      <div class="barn-header">🏚️ เล้า ${b.barnName} — ${b.pigs.length} ตัว${b.note?' | 📝 '+b.note:''}</div>
-      <table><tr><th>#</th><th>รหัสหมู</th><th>เพศ</th><th>ประวัติ</th><th>ลูกผู้</th><th>ลูกเมีย</th><th>ลูกรวม</th></tr>
-      ${b.pigs.map((p,i)=>`<tr>
-        <td>${i+1}</td><td><b>${p.id}</b></td>
-        <td class="${p.sex==='sow'?'sow':'boar'}">${p.sex==='sow'?'♀ แม่':'♂ พ่อ'}</td>
-        <td>${p.hasRecord?'✓ มีประวัติ':'— ไม่มีประวัติ'}</td>
-        <td>${p.piglets_m||0}</td><td>${p.piglets_f||0}</td><td>${(p.piglets_m||0)+(p.piglets_f||0)}</td>
-      </tr>`).join('')}
+    <p>รวม ${r.totalPigs} | ♀${r.totalSows} | ♂${r.totalBoars} | 🐷${r.totalPiglets||0} | ✓${r.withRecord} | ✗${r.noRecord}</p>
+    ${barns.map(b => `
+      <div class="barn-header">🏚️ ${b.barnName} — ${b.pigs.length} ตัว${b.note?' | 📝 '+b.note:''}</div>
+      <table><tr><th>#</th><th>รหัส</th><th>เพศ</th><th>ประวัติ</th><th>ลูกผู้</th><th>ลูกเมีย</th><th>ไม่ระบุ</th><th>รวม</th></tr>
+      ${b.pigs.map((p,i) => `<tr><td>${i+1}</td><td><b>${p.id}</b></td>
+        <td>${p.sex==='sow'?'♀ แม่':p.sex==='boar'?'♂ พ่อ':'?'}</td>
+        <td>${p.found?'✓':'✗'}</td><td>${p.piglets_m||0}</td><td>${p.piglets_f||0}</td><td>${p.piglets_u||0}</td><td>${(p.piglets_m||0)+(p.piglets_f||0)+(p.piglets_u||0)}</td></tr>`).join('')}
       </table>`).join('')}
     <div style="margin-top:20px;color:#aaa;font-size:11px;text-align:center">พิมพ์จาก Piggy Check-in — ${new Date().toLocaleString('th-TH')}</div>
-    <script>window.onload=()=>window.print();<\/script>
+    <script>window.onload=()=>window.print()<\/script>
   </body></html>`);
   win.document.close();
 }
 
 // ============================================================
+// AUTO-SAVE SESSION
+// ============================================================
+const SESSION_KEY = 'piggy_session_draft';
+
+function autoSaveSession() {
+  if (!currentFarmId || !currentCntNumber) return;
+  localStorage.setItem(SESSION_KEY, JSON.stringify({
+    currentFarmId, currentFarm, currentDate, currentSubmitter, currentCntNumber,
+    currentBarn, currentPigs, savedBarns,
+    barnNote: document.getElementById('barnNote')?.value || ''
+  }));
+}
+
+function clearDraft() {
+  localStorage.removeItem(SESSION_KEY);
+}
+
+function checkDraftSession() {
+  const raw = localStorage.getItem(SESSION_KEY);
+  if (!raw) return;
+  try {
+    const d = JSON.parse(raw);
+    const total = (d.currentPigs||[]).length + (d.savedBarns||[]).flatMap(b => b.pigs||[]).length;
+    if (!total) { clearDraft(); return; }
+    const msg = `พบข้อมูลตรวจนับค้าง:\n\n📄 ${d.currentCntNumber}\n🏠 ${d.currentFarm} | 📅 ${d.currentDate}\nรวม ${total} ตัว\n\nโหลดต่อ?`;
+    if (confirm(msg)) {
+      currentFarmId = d.currentFarmId; currentFarm = d.currentFarm; currentDate = d.currentDate;
+      currentSubmitter = d.currentSubmitter; currentCntNumber = d.currentCntNumber;
+      currentBarn = d.currentBarn; currentPigs = d.currentPigs || []; savedBarns = d.savedBarns || [];
+      updateCountUI();
+      document.getElementById('barnNote').value = d.barnNote || '';
+      showPage('count');
+      toast('✅ โหลดข้อมูลค้าง — ' + total + ' ตัว');
+    } else {
+      clearDraft();
+    }
+  } catch (e) { clearDraft(); }
+}
+
+// ============================================================
 // HELPERS
 // ============================================================
-function formatDate(d){
-  if(!d) return '-';
-  const [y,m,day]=d.split('-');
-  const months=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function formatDate(d) {
+  if (!d) return '-';
+  const [y, m, day] = d.split('-');
+  const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   return `${parseInt(day)} ${months[parseInt(m)-1]} ${parseInt(y)+543}`;
 }
 
-function showAlert(id,type,msg){
-  const el=document.getElementById(id);
-  el.className=`alert ${type==='success'?'alert-green':'alert-red'}`;
-  el.innerHTML=msg;
+function showAlert(id, type, msg) {
+  const el = document.getElementById(id);
+  el.className = `alert ${type==='success'?'alert-green':'alert-red'}`;
+  el.innerHTML = msg;
   clearTimeout(el._t);
-  el._t=setTimeout(()=>el.classList.add('hidden'),5000);
+  el._t = setTimeout(() => el.classList.add('hidden'), 5000);
 }
 
-function saveLoginApiUrl() {
-  const url = document.getElementById('loginApiUrl').value.trim();
-  if (!url) return alert('กรุณาวาง URL ก่อน');
-  API_URL = url;
-  localStorage.setItem('pig_api_url', url);
-  document.getElementById('loginApiSaved').style.display = 'block';
-  setTimeout(() => document.getElementById('loginApiSaved').style.display = 'none', 2000);
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
 }
+
+// Close dropdown on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-box')) {
+    document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('show'));
+  }
+});
+
+// Online/offline detection
+window.addEventListener('online', () => {
+  document.getElementById('onlineBadge').className = 'online-badge';
+  document.getElementById('onlineBadge').textContent = '● ออนไลน์';
+});
+window.addEventListener('offline', () => {
+  document.getElementById('onlineBadge').className = 'online-badge offline';
+  document.getElementById('onlineBadge').textContent = '● ออฟไลน์';
+});
 
 window.onload = () => {
   document.getElementById('countDate').value = new Date().toISOString().split('T')[0];
-  // ถ้าเครื่องนี้ยังไม่มี API URL → แสดงช่องกรอก
-  if (!API_URL) {
-    document.getElementById('apiSetupBox').style.display = 'block';
-  }
 };
 </script>
 </body>
